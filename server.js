@@ -1,31 +1,58 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 require("dotenv").config();
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 
-// ✅ STATIC FIX (IMPORTANT)
-app.use(express.static(path.join(__dirname, "public")));
+// ✅ KEY ROTATION
+const groqKeys = process.env.GROQ_KEYS.split(",");
+let index = 0;
 
-// 🔥 HOME ROUTE FIX (MAIN PROBLEM SOLVED)
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+function getKey() {
+  const key = groqKeys[index];
+  index = (index + 1) % groqKeys.length;
+  return key;
+}
+
+// ✅ CHAT API (REAL AI)
+app.post("/api/chat", async (req, res) => {
+  try {
+    const userMsg = req.body.message;
+
+    const apiKey = getKey();
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-8b-8192",
+        messages: [
+          { role: "system", content: "You are a smart AI assistant." },
+          { role: "user", content: userMsg }
+        ]
+      })
+    });
+
+    const data = await response.json();
+
+    const reply = data.choices?.[0]?.message?.content || "Error";
+
+    res.json({ reply });
+
+  } catch (err) {
+    console.log(err);
+    res.json({ reply: "Server error 😢" });
+  }
 });
 
-// 🔥 API
-app.post("/api/chat", (req, res) => {
-  const msg = req.body.message;
-
-  res.json({
-    reply: "🤖 AI: " + msg
-  });
-});
-
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
