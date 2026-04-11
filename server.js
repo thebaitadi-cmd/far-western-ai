@@ -38,11 +38,11 @@ const split = (k) =>
 // =====================
 function clean(text) {
   return text
-    .replace(/\n+/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[ ]{2,}/g, " ")
     .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
-    .replace(/ +/g, " ")
     .trim()
-    .slice(0, 250); // 🔥 short reply tighter
+    .slice(0, 180); // 🔥 short reply hard limit
 }
 
 // =====================
@@ -206,7 +206,7 @@ async function analyze(path) {
 }
 
 // =====================
-// 🧠 MAIN AI (FINAL FIX)
+// 🧠 MAIN AI (FINAL)
 // =====================
 async function AI(prompt) {
 
@@ -223,16 +223,21 @@ async function AI(prompt) {
     extra = g + "\n" + n;
   }
 
-  // 🔥 LANGUAGE + SHORT RULE
   const systemRule = `
-You are a smart AI.
+You are a smart AI assistant.
 
-Rules:
-- Detect user's language automatically (Hindi, English, Nepali, Hinglish, etc.)
-- ALWAYS reply in SAME language
-- Keep answer SHORT (max 2-3 lines)
-- Make reply natural and human-like
-- Fix spacing properly
+STRICT RULES:
+- Detect user's language EXACTLY
+- Reply ONLY in same language (no mixing)
+- If Hinglish → reply Hinglish
+- If Nepali → reply Nepali
+- NEVER translate unless asked
+
+- Keep answer VERY SHORT (1–2 lines max)
+- Natural human tone
+- Proper spacing
+- NO long paragraphs
+- NO numbering
 `;
 
   const full = systemRule + "\n" + context(prompt + "\n" + extra);

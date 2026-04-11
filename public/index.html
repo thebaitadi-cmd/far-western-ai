@@ -29,11 +29,17 @@ h1 {
   padding:12px;
   margin:10px;
   border-radius:12px;
+  line-height:1.6;              /* ✅ spacing fix */
+  white-space:pre-wrap;         /* ✅ line break fix */
+  word-wrap:break-word;         /* ✅ overflow fix */
+  overflow-wrap:break-word;
+  max-width:90%;
 }
 
 .user {
   background:linear-gradient(45deg,blue,purple);
   text-align:right;
+  margin-left:auto;
 }
 
 .bot {
@@ -137,16 +143,13 @@ function typeText(text) {
 }
 
 // =====================
-// 🔊 VOICE OUTPUT (AUTO LANGUAGE FIXED)
+// 🔊 VOICE OUTPUT
 // =====================
 function speak(text) {
   const speech = new SpeechSynthesisUtterance(text);
 
-  // better language detect
   if (/[\u0900-\u097F]/.test(text)) {
-    speech.lang = "hi-IN"; // Hindi / Nepali (close)
-  } else if (/[\u0980-\u09FF]/.test(text)) {
-    speech.lang = "bn-IN";
+    speech.lang = "hi-IN";
   } else {
     speech.lang = "en-US";
   }
@@ -190,272 +193,23 @@ async function send() {
 }
 
 // =====================
-// 🎤 VOICE INPUT (AUTO DETECT FIXED)
+// 🎤 VOICE INPUT
 // =====================
 function startVoice(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
-    alert("Voice not supported in this browser");
+    alert("Voice not supported");
     return;
   }
 
   const rec = new SpeechRecognition();
-
-  rec.continuous = false;
-  rec.interimResults = false;
-
-  // 🔥 AUTO LANGUAGE (BEST POSSIBLE)
   rec.lang = navigator.language || "en-US";
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
     document.getElementById("input").value = text;
     send();
-  };
-
-  rec.onerror = e=>{
-    console.log("Voice error:", e);
-  };
-
-  rec.start();
-}
-
-// =====================
-// IMAGE UPLOAD
-// =====================
-async function upload(){
-  const file = document.getElementById("file").files[0];
-  const form = new FormData();
-  form.append("image",file);
-
-  const res = await fetch("/upload",{method:"POST",body:form});
-  const data = await res.json();
-
-  add(data.result,"bot");
-}
-
-</script>
-
-</body>
-</html><!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Far Western AI</title>
-
-<style>
-body {
-  margin:0;
-  background:black;
-  color:white;
-  font-family:sans-serif;
-}
-
-h1 {
-  text-align:center;
-  background:linear-gradient(45deg,cyan,purple);
-  -webkit-background-clip:text;
-  color:transparent;
-}
-
-.chat {
-  max-width:700px;
-  margin:auto;
-  padding-bottom:120px;
-}
-
-.msg {
-  padding:12px;
-  margin:10px;
-  border-radius:12px;
-}
-
-.user {
-  background:linear-gradient(45deg,blue,purple);
-  text-align:right;
-}
-
-.bot {
-  background:#111;
-  border:1px solid cyan;
-  box-shadow:0 0 10px cyan;
-}
-
-#bottom {
-  position:fixed;
-  bottom:0;
-  width:100%;
-  background:#000;
-  padding:10px;
-}
-
-input {
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  width:60%;
-}
-
-button {
-  padding:10px;
-  background:linear-gradient(45deg,cyan,purple);
-  border:none;
-  border-radius:8px;
-  color:white;
-}
-
-.typing {
-  border-right:2px solid white;
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  50% {border-color: transparent;}
-}
-</style>
-</head>
-
-<body>
-
-<h1>🚀 Far Western AI</h1>
-
-<div id="chat" class="chat"></div>
-
-<div id="bottom">
-  <input id="input" placeholder="Type..." />
-  <button onclick="send()">Send</button>
-  <button onclick="startVoice()">🎤</button>
-
-  <br><br>
-
-  <input type="file" id="file">
-  <button onclick="upload()">Upload</button>
-</div>
-
-<script>
-
-const chat = document.getElementById("chat");
-
-// =====================
-// CLEAN TEXT
-// =====================
-function cleanText(text) {
-  return text.replace(/\s+/g," ").trim();
-}
-
-// =====================
-// ADD MESSAGE
-// =====================
-function add(text,type) {
-  const d = document.createElement("div");
-  d.className = "msg " + type;
-  d.innerText = cleanText(text);
-  chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// =====================
-// TYPING EFFECT
-// =====================
-function typeText(text) {
-  text = cleanText(text);
-
-  const d = document.createElement("div");
-  d.className = "msg bot typing";
-  chat.appendChild(d);
-
-  let i = 0;
-  const interval = setInterval(()=>{
-    d.innerText += text[i];
-    i++;
-    if(i>=text.length){
-      clearInterval(interval);
-      d.classList.remove("typing");
-    }
-  },15);
-}
-
-// =====================
-// 🔊 VOICE OUTPUT (AUTO LANGUAGE FIXED)
-// =====================
-function speak(text) {
-  const speech = new SpeechSynthesisUtterance(text);
-
-  // better language detect
-  if (/[\u0900-\u097F]/.test(text)) {
-    speech.lang = "hi-IN"; // Hindi / Nepali (close)
-  } else if (/[\u0980-\u09FF]/.test(text)) {
-    speech.lang = "bn-IN";
-  } else {
-    speech.lang = "en-US";
-  }
-
-  speech.rate = 0.9;
-
-  const voices = speechSynthesis.getVoices();
-  speech.voice = voices.find(v => v.lang === speech.lang) || voices[0];
-
-  speechSynthesis.cancel();
-  speechSynthesis.speak(speech);
-}
-
-// =====================
-// SEND MESSAGE
-// =====================
-async function send() {
-  const input = document.getElementById("input");
-  let text = input.value;
-
-  if(!text) return;
-
-  add(text,"user");
-  input.value="";
-
-  const res = await fetch("/chat",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({message:text})
-  });
-
-  const data = await res.json();
-
-  if(data.image){
-    chat.innerHTML += `<img src="${data.image}" width="300">`;
-    return;
-  }
-
-  typeText(data.reply);
-  speak(data.reply);
-}
-
-// =====================
-// 🎤 VOICE INPUT (AUTO DETECT FIXED)
-// =====================
-function startVoice(){
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (!SpeechRecognition) {
-    alert("Voice not supported in this browser");
-    return;
-  }
-
-  const rec = new SpeechRecognition();
-
-  rec.continuous = false;
-  rec.interimResults = false;
-
-  // 🔥 AUTO LANGUAGE (BEST POSSIBLE)
-  rec.lang = navigator.language || "en-US";
-
-  rec.onresult = e=>{
-    const text = e.results[0][0].transcript;
-    document.getElementById("input").value = text;
-    send();
-  };
-
-  rec.onerror = e=>{
-    console.log("Voice error:", e);
   };
 
   rec.start();
