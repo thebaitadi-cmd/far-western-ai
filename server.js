@@ -1,3 +1,7 @@
+console.log("=== ENV CHECK ===");
+console.log("GROQ_KEYS:", process.env.GROQ_KEYS);
+console.log("GEMINI_KEY:", process.env.GEMINI_KEY);
+console.log("TOGETHER_KEY:", process.env.TOGETHER_KEY);
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
