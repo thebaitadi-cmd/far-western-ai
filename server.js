@@ -1,83 +1,53 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
-const multer = require("multer");
-const FormData = require("form-data");
-const path = require("path");
+import express from "express";
+import cors from "cors";
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
-
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
-// 🔥 10 KEYS
-const KEYS = [
-  process.env.GROQ_API_KEY_1,
-  process.env.GROQ_API_KEY_2,
-  process.env.GROQ_API_KEY_3,
-  process.env.GROQ_API_KEY_4,
-  process.env.GROQ_API_KEY_5,
-  process.env.GROQ_API_KEY_6,
-  process.env.GROQ_API_KEY_7,
-  process.env.GROQ_API_KEY_8,
-  process.env.GROQ_API_KEY_9,
-  process.env.GROQ_API_KEY_10
-];
+const PORT = process.env.PORT || 3000;
 
-let keyIndex = 0;
+// 🔑 10 API KEYS
+const API_KEYS = [
+  process.env.KEY1,
+  process.env.KEY2,
+  process.env.KEY3,
+  process.env.KEY4,
+  process.env.KEY5,
+  process.env.KEY6,
+  process.env.KEY7,
+  process.env.KEY8,
+  process.env.KEY9,
+  process.env.KEY10
+].filter(Boolean);
+
+// 👉 Random key
 function getKey() {
-  const key = KEYS[keyIndex];
-  keyIndex = (keyIndex + 1) % KEYS.length;
-  return key;
+  return API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
 }
 
-// 🚀 MAIN AI ROUTE
-app.post("/ai", upload.single("file"), async (req, res) => {
+app.get("/", (req, res) => {
+  res.send("Far Western AI Server Running 🚀");
+});
+
+app.post("/chat", async (req, res) => {
   try {
-    let message = req.body.message || "";
-    const file = req.file;
-    const key = getKey();
+    const { message } = req.body;
 
-    // 🎤 VOICE
-    if (file && file.mimetype.startsWith("audio")) {
-      const form = new FormData();
-      form.append("file", file.buffer, "audio.webm");
-      form.append("model", "whisper-large-v3");
-
-      const response = await fetch(
-        "https://api.groq.com/openai/v1/audio/transcriptions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${key}`
-          },
-          body: form
-        }
-      );
-
-      const data = await response.json();
-      message = data.text || "";
-    }
-
-    // 💬 CHAT
-    const chat = await fetch(
+    const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getKey()}`
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          temperature: 0.2,
+          model: "llama-3.3-70b-versatile", // ✅ latest working
           messages: [
             {
               role: "system",
-              content:
-                "Reply in SAME language as user. Hindi->Hindi, Nepali->Nepali, English->English."
+              content: "Reply in same language (Hindi, English, Nepali)."
             },
             {
               role: "user",
@@ -88,23 +58,22 @@ app.post("/ai", upload.single("file"), async (req, res) => {
       }
     );
 
-    const result = await chat.json();
+    const data = await response.json();
+
+    if (!data.choices) {
+      return res.json({ reply: "API Error: " + JSON.stringify(data) });
+    }
 
     res.json({
-      reply: result?.choices?.[0]?.message?.content || "No response"
+      reply: data.choices[0].message.content
     });
 
   } catch (err) {
     console.log(err);
-    res.json({ reply: "⚠️ Server Error" });
+    res.json({ reply: "Server error" });
   }
 });
 
-// ROOT FIX
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.listen(process.env.PORT || 3000, () => {
+app.listen(PORT, () => {
   console.log("Server running 🚀");
 });
