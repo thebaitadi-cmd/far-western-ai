@@ -2,24 +2,25 @@ require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
 const cors = require("cors");
+const multer = require("multer");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 app.use(express.static("public"));
 
+const upload = multer({ dest: "uploads/" });
+
 const PORT = process.env.PORT || 10000;
 
-// ===== Helper =====
 function getKeys(envKey) {
   return process.env[envKey] ? process.env[envKey].split(",") : [];
 }
 
-// ===== Chat API =====
+// ================= CHAT =================
 app.post("/api/chat", async (req, res) => {
   const userMsg = req.body.message;
 
-  // ===== 1. GROQ =====
   const groqKeys = getKeys("GROQ_KEYS");
 
   for (let key of groqKeys) {
@@ -43,54 +44,56 @@ app.post("/api/chat", async (req, res) => {
     } catch (e) {}
   }
 
-  // ===== 2. OPENROUTER =====
-  const openrouterKeys = getKeys("OPENROUTER_KEYS");
+  return res.json({ reply: "⚠️ No AI response" });
+});
 
-  for (let key of openrouterKeys) {
-    try {
-      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "mistralai/mixtral-8x7b",
-          messages: [{ role: "user", content: userMsg }]
-        })
-      });
-
-      const data = await r.json();
-      if (data.choices) {
-        return res.json({ reply: data.choices[0].message.content });
-      }
-    } catch (e) {}
-  }
-
-  // ===== 3. SERPER (Google Search) =====
+// ================= IMAGE ANALYZE =================
+app.post("/api/image", upload.single("image"), async (req, res) => {
   try {
-    const r = await fetch("https://google.serper.dev/search", {
+    const r = await fetch("https://api.deepai.org/api/densecap", {
       method: "POST",
       headers: {
-        "X-API-KEY": process.env.SERPER_KEY,
-        "Content-Type": "application/json"
+        "Api-Key": process.env.DEEPAI_KEY
       },
-      body: JSON.stringify({ q: userMsg })
+      body: new URLSearchParams({
+        image: req.file.path
+      })
     });
 
     const data = await r.json();
 
-    if (data.organic) {
-      let text = data.organic
-        .slice(0, 3)
-        .map(x => x.title + " - " + x.snippet)
-        .join("\n");
+    let text = data.output.captions
+      .slice(0, 3)
+      .map(x => x.caption)
+      .join(", ");
 
-      return res.json({ reply: text });
-    }
-  } catch (e) {}
+    res.json({ reply: text });
 
-  return res.json({ reply: "⚠️ No AI response" });
+  } catch (e) {
+    res.json({ reply: "Image analyze error" });
+  }
+});
+
+// ================= IMAGE GENERATE =================
+app.post("/api/generate-image", async (req, res) => {
+  try {
+    const r = await fetch("https://api.deepai.org/api/text2img", {
+      method: "POST",
+      headers: {
+        "Api-Key": process.env.DEEPAI_KEY
+      },
+      body: new URLSearchParams({
+        text: req.body.prompt
+      })
+    });
+
+    const data = await r.json();
+
+    res.json({ image: data.output_url });
+
+  } catch (e) {
+    res.json({ error: "Image generation failed" });
+  }
 });
 
 app.listen(PORT, () => {
