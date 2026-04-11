@@ -1,34 +1,33 @@
 body {
-  background: radial-gradient(circle, #0f2027, #203a43, #2c5364);
-  color: white;
+  margin: 0;
   font-family: Arial;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: white;
   text-align: center;
-  margin-top: 80px;
 }
 
-h1 {
-  font-size: 40px;
-  margin-bottom: 30px;
+.container {
+  margin-top: 100px;
 }
 
 input {
   padding: 12px;
-  width: 250px;
+  width: 300px;
   border-radius: 10px;
   border: none;
 }
 
 button {
-  padding: 12px 20px;
-  border-radius: 10px;
+  padding: 12px;
+  margin: 5px;
   border: none;
-  margin-left: 10px;
-  cursor: pointer;
+  border-radius: 10px;
   background: #00c6ff;
-  color: black;
+  color: white;
+  cursor: pointer;
 }
 
 #output {
-  margin-top: 30px;
+  margin-top: 20px;
   font-size: 18px;
 }

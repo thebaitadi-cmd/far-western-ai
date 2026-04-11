@@ -1,19 +1,40 @@
 async function send() {
   const input = document.getElementById("input").value;
 
-  if (!input) return;
-
-  document.getElementById("output").innerText = "Thinking...";
-
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ message: input })
+    body: JSON.stringify({ message: input }),
   });
 
   const data = await res.json();
 
   document.getElementById("output").innerText = "🤖 " + data.reply;
+}
+
+// VOICE INPUT
+function startVoice() {
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+
+  recognition.start();
+
+  recognition.onresult = async function (event) {
+    const text = event.results[0][0].transcript;
+
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: text }),
+    });
+
+    const data = await res.json();
+
+    // VOICE OUTPUT ONLY
+    const speech = new SpeechSynthesisUtterance(data.reply);
+    speechSynthesis.speak(speech);
+  };
 }
