@@ -2,40 +2,199 @@
 <html>
 <head>
 <title>Far Western AI</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
-body { background:black; color:white; font-family:sans-serif; }
-.chat { max-width:600px; margin:auto; padding-top:50px; }
-.msg { padding:10px; margin:10px; border-radius:10px; }
-.user { background:blue; text-align:right; }
-.bot { background:#222; }
+body {
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:sans-serif;
+  text-align:center;
+}
+
+h1 {
+  margin-top:20px;
+  background: linear-gradient(45deg, cyan, purple);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.chat {
+  max-width:700px;
+  margin:auto;
+  padding-bottom:120px;
+}
+
+.msg {
+  padding:12px;
+  margin:10px;
+  border-radius:12px;
+  animation: fade 0.3s ease;
+}
+
+.user {
+  background:linear-gradient(45deg,#2563eb,#9333ea);
+  text-align:right;
+}
+
+.bot {
+  background:#111;
+}
+
+img {
+  border-radius:10px;
+  margin:10px;
+  box-shadow:0 0 20px cyan;
+}
+
+#bottom {
+  position:fixed;
+  bottom:0;
+  width:100%;
+  background:#000;
+  padding:10px;
+  box-shadow:0 0 20px cyan;
+}
+
+input {
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+}
+
+button {
+  padding:10px 15px;
+  border:none;
+  border-radius:8px;
+  background:linear-gradient(45deg,cyan,purple);
+  color:#fff;
+  cursor:pointer;
+}
+
+@keyframes fade {
+  from {opacity:0; transform:translateY(10px);}
+  to {opacity:1;}
+}
 </style>
 </head>
 
 <body>
+
+<h1>🚀 Far Western AI</h1>
+
 <div class="chat" id="chat"></div>
 
-<input id="input" placeholder="Ask anything...">
-<button onclick="send()">Send</button>
+<div id="bottom">
+
+  <input id="input" placeholder="Type message..." />
+  <button onclick="send()">Send</button>
+
+  <br>
+
+  <input type="file" id="file">
+  <input id="editPrompt" placeholder="Edit prompt (optional)">
+  <button onclick="upload()">Upload</button>
+
+  <br>
+
+  <input id="imgPrompt" placeholder="Generate image prompt">
+  <button onclick="generate()">Generate</button>
+
+</div>
 
 <script>
-async function send() {
-  const input = document.getElementById("input");
-  const chat = document.getElementById("chat");
 
-  const userMsg = input.value;
-  chat.innerHTML += `<div class="msg user">${userMsg}</div>`;
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+
+// ===== TEXT CHAT =====
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMsg(text,"user");
+  input.value = "";
 
   const res = await fetch("/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: userMsg })
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message:text})
   });
 
   const data = await res.json();
 
-  chat.innerHTML += `<div class="msg bot">${data.reply}</div>`;
-  input.value = "";
+  addMsg(data.reply,"bot");
 }
+
+// ===== IMAGE GENERATE =====
+async function generate() {
+  const prompt = document.getElementById("imgPrompt").value.trim();
+  if (!prompt) return;
+
+  addMsg("Generating image...","bot");
+
+  const res = await fetch("/generate-image", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({prompt})
+  });
+
+  const data = await res.json();
+
+  if (data.url) {
+    chat.innerHTML += `<img src="${data.url}" width="300">`;
+  } else {
+    addMsg("❌ Image failed","bot");
+  }
+
+  scrollBottom();
+}
+
+// ===== IMAGE UPLOAD / EDIT =====
+async function upload() {
+  const fileInput = document.getElementById("file");
+  const editPrompt = document.getElementById("editPrompt").value;
+
+  if (!fileInput.files[0]) return;
+
+  const form = new FormData();
+  form.append("image", fileInput.files[0]);
+  form.append("prompt", editPrompt);
+
+  addMsg("Processing image...","bot");
+
+  const res = await fetch("/upload", {
+    method:"POST",
+    body:form
+  });
+
+  const data = await res.json();
+
+  addMsg(data.result,"bot");
+}
+
+// ===== UI HELPERS =====
+function addMsg(text,type){
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.innerText = text;
+  chat.appendChild(div);
+  scrollBottom();
+}
+
+function scrollBottom(){
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ENTER KEY
+input.addEventListener("keypress", e=>{
+  if(e.key==="Enter") send();
+});
+
 </script>
+
 </body>
 </html>
