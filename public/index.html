@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -58,7 +59,8 @@ input {
   padding:10px;
   border:none;
   border-radius:8px;
-  width:60%;
+  width:65%;
+  max-width:500px;
 }
 
 button {
@@ -89,6 +91,11 @@ button {
 const chat = document.getElementById("chat");
 
 // =====================
+// AUTO FOCUS
+// =====================
+document.getElementById("input").focus();
+
+// =====================
 // ADD MESSAGE
 // =====================
 function add(text,type) {
@@ -96,11 +103,15 @@ function add(text,type) {
   d.className = "msg " + type;
   d.innerText = text;
   chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
+
+  chat.scrollTo({
+    top: chat.scrollHeight,
+    behavior: "smooth"
+  });
 }
 
 // =====================
-// TYPING EFFECT (SMOOTH)
+// TYPING EFFECT
 // =====================
 function typeText(text, callback) {
   const d = document.createElement("div");
@@ -108,8 +119,6 @@ function typeText(text, callback) {
   chat.appendChild(d);
 
   let i = 0;
-
-  const speed = 10;
 
   const interval = setInterval(()=>{
     d.innerText += text[i];
@@ -119,20 +128,22 @@ function typeText(text, callback) {
       clearInterval(interval);
       if(callback) callback();
     }
-  }, speed);
+  }, 10);
 
-  chat.scrollTop = chat.scrollHeight;
+  chat.scrollTo({
+    top: chat.scrollHeight,
+    behavior: "smooth"
+  });
 }
 
 // =====================
-// 🔊 STABLE HUMAN VOICE
+// 🔊 VOICE FIX (NO MIX)
 // =====================
 let selectedVoice = null;
 
 function loadVoices() {
   const voices = speechSynthesis.getVoices();
 
-  // 🔥 ONE fixed voice (no switching)
   selectedVoice =
     voices.find(v => v.name.includes("Google US English")) ||
     voices.find(v => v.lang === "en-US") ||
@@ -141,9 +152,16 @@ function loadVoices() {
 
 speechSynthesis.onvoiceschanged = loadVoices;
 
+window.onload = () => {
+  loadVoices();
+};
+
+// =====================
+// SPEAK
+// =====================
 function speak(text) {
 
-  speechSynthesis.cancel(); // stop previous
+  speechSynthesis.cancel();
 
   if (!selectedVoice) loadVoices();
 
@@ -152,7 +170,6 @@ function speak(text) {
   speech.voice = selectedVoice;
   speech.lang = selectedVoice.lang;
 
-  // 🔥 human tuning
   speech.rate = 0.9;
   speech.pitch = 0.95;
   speech.volume = 1;
@@ -173,6 +190,17 @@ async function send() {
   add(text,"user");
   input.value = "";
 
+  // 🔥 loading
+  const loading = document.createElement("div");
+  loading.className = "msg bot";
+  loading.innerText = "Thinking...";
+  chat.appendChild(loading);
+
+  chat.scrollTo({
+    top: chat.scrollHeight,
+    behavior: "smooth"
+  });
+
   try {
     const res = await fetch("/chat",{
       method:"POST",
@@ -182,17 +210,19 @@ async function send() {
 
     const data = await res.json();
 
+    loading.remove();
+
     if(!data.reply){
       add("No response","bot");
       return;
     }
 
-    // typing → then speak
     typeText(data.reply, ()=>{
       speak(data.reply);
     });
 
   } catch (e) {
+    loading.remove();
     add("Server error","bot");
   }
 }
@@ -210,7 +240,7 @@ function startVoice(){
 
   const rec = new SpeechRecognition();
 
-  rec.lang = "en-US"; // 🔥 stable
+  rec.lang = "en-US";
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
@@ -222,7 +252,7 @@ function startVoice(){
 }
 
 // =====================
-// ENTER KEY SEND
+// ENTER SEND
 // =====================
 document.getElementById("input").addEventListener("keypress", function(e){
   if(e.key === "Enter"){

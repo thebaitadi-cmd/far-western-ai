@@ -29,7 +29,22 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// ✂️ CLEAN (NO CUT 🔥)
+// 🔥 GREETING DETECTOR
+// =====================
+function isGreeting(text) {
+  const t = text.toLowerCase().trim();
+
+  return (
+    t === "hi" ||
+    t === "hello" ||
+    t === "hey" ||
+    t.includes("kaise ho") ||
+    t.includes("namaste")
+  );
+}
+
+// =====================
+// ✂️ CLEAN (NO CUT)
 // =====================
 function clean(text) {
   if (!text) return "";
@@ -38,7 +53,7 @@ function clean(text) {
     .replace(/\n+/g, " ")
     .replace(/[ ]+/g, " ")
     .replace(/AI:/gi, "")
-    .trim(); // ❌ no slice
+    .trim();
 }
 
 // =====================
@@ -157,24 +172,27 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🧠 INTENT DETECTION
+// 🧠 INTENT DETECTOR
 // =====================
 async function detectIntent(prompt) {
   const res = await groq(`
-Classify intent:
+Classify intent into ONE word:
+- greeting
 - realtime
 - summary
+- question
 - normal
 
 User: "${prompt}"
-Answer one word only.
+
+Answer only one word.
 `);
 
   return res?.toLowerCase().trim();
 }
 
 // =====================
-// 🧠 PARALLEL AI
+// 🧠 PARALLEL THINKING
 // =====================
 async function parallel(prompt) {
   const results = await Promise.all([
@@ -188,7 +206,7 @@ async function parallel(prompt) {
 }
 
 // =====================
-// 🧠 BEST ANSWER (SMART 🔥)
+// 🧠 BEST ANSWER SELECTOR
 // =====================
 function pickBest(arr) {
   if (!arr.length) return null;
@@ -205,30 +223,36 @@ function pickBest(arr) {
 // =====================
 async function AI(prompt) {
 
+  // 🔥 GREETING FIX
+  if (isGreeting(prompt)) {
+    return "Hello! How can I help you?";
+  }
+
   const intent = await detectIntent(prompt);
   const ctx = getContext();
 
   let extra = "";
 
-  // 🔥 REALTIME FORCE
+  // 🔥 REALTIME DATA
   const g = await google(prompt);
   if (g) {
     extra = "\nREAL DATA:\n" + g;
   }
 
-  if (intent === "summary") {
+  // 🔥 SAFE SUMMARY
+  if (intent === "summary" && memory.length > 2) {
     prompt = `Summarize in 1 line:\n${ctx}`;
   }
 
   const finalPrompt = `
 You are an ADVANCED AI.
 
-STRICT RULES:
+RULES:
 - NEVER GUESS
-- If not sure → say "I don't know"
+- If unsure → say "I don't know"
 - Use real data if available
-- Natural human tone
 - Same language
+- Natural human tone
 
 Conversation:
 ${ctx}
@@ -265,4 +289,4 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log("🔥 MASTER AI v2 RUNNING ON " + PORT));
+app.listen(PORT, () => console.log("🔥 MASTER AI FINAL RUNNING ON " + PORT));
