@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Far Western AI</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Far Western AI</title>
 
 <style>
 body {
@@ -11,14 +10,13 @@ body {
   background:#000;
   color:#fff;
   font-family:sans-serif;
-  text-align:center;
 }
 
 h1 {
-  margin-top:20px;
-  background: linear-gradient(45deg, cyan, purple);
-  -webkit-background-clip: text;
-  color: transparent;
+  text-align:center;
+  background:linear-gradient(45deg,cyan,purple);
+  -webkit-background-clip:text;
+  color:transparent;
 }
 
 .chat {
@@ -31,22 +29,17 @@ h1 {
   padding:12px;
   margin:10px;
   border-radius:12px;
-  animation: fade 0.3s ease;
 }
 
 .user {
-  background:linear-gradient(45deg,#2563eb,#9333ea);
+  background:linear-gradient(45deg,blue,purple);
   text-align:right;
 }
 
 .bot {
   background:#111;
-}
-
-img {
-  border-radius:10px;
-  margin:10px;
-  box-shadow:0 0 20px cyan;
+  border:1px solid cyan;
+  box-shadow:0 0 10px cyan;
 }
 
 #bottom {
@@ -55,28 +48,29 @@ img {
   width:100%;
   background:#000;
   padding:10px;
-  box-shadow:0 0 20px cyan;
 }
 
 input {
   padding:10px;
-  margin:5px;
   border:none;
   border-radius:8px;
 }
 
 button {
-  padding:10px 15px;
+  padding:10px;
+  background:linear-gradient(45deg,cyan,purple);
   border:none;
   border-radius:8px;
-  background:linear-gradient(45deg,cyan,purple);
-  color:#fff;
-  cursor:pointer;
+  color:white;
 }
 
-@keyframes fade {
-  from {opacity:0; transform:translateY(10px);}
-  to {opacity:1;}
+.typing {
+  border-right:2px solid white;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  50% {border-color: transparent;}
 }
 </style>
 </head>
@@ -85,38 +79,55 @@ button {
 
 <h1>🚀 Far Western AI</h1>
 
-<div class="chat" id="chat"></div>
+<div id="chat" class="chat"></div>
 
 <div id="bottom">
-
-  <input id="input" placeholder="Type message..." />
+  <input id="input" placeholder="Type..." />
   <button onclick="send()">Send</button>
+  <button onclick="startVoice()">🎤</button>
 
-  <br>
+  <br><br>
 
   <input type="file" id="file">
-  <input id="editPrompt" placeholder="Edit prompt (optional)">
   <button onclick="upload()">Upload</button>
-
-  <br>
-
-  <input id="imgPrompt" placeholder="Generate image prompt">
-  <button onclick="generate()">Generate</button>
-
 </div>
 
 <script>
 
 const chat = document.getElementById("chat");
-const input = document.getElementById("input");
 
-// ===== TEXT CHAT =====
-async function send() {
-  const text = input.value.trim();
+function add(text, type) {
+  const d = document.createElement("div");
+  d.className = "msg " + type;
+  d.innerText = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// typing animation
+async function typeText(text) {
+  const d = document.createElement("div");
+  d.className = "msg bot typing";
+  chat.appendChild(d);
+
+  let i = 0;
+  let interval = setInterval(() => {
+    d.innerText += text[i];
+    i++;
+    if (i >= text.length) {
+      clearInterval(interval);
+      d.classList.remove("typing");
+    }
+  }, 20);
+}
+
+// SEND
+async function send(voice=false) {
+  let text = input.value;
   if (!text) return;
 
-  addMsg(text,"user");
-  input.value = "";
+  add(text,"user");
+  input.value="";
 
   const res = await fetch("/chat", {
     method:"POST",
@@ -126,73 +137,46 @@ async function send() {
 
   const data = await res.json();
 
-  addMsg(data.reply,"bot");
-}
-
-// ===== IMAGE GENERATE =====
-async function generate() {
-  const prompt = document.getElementById("imgPrompt").value.trim();
-  if (!prompt) return;
-
-  addMsg("Generating image...","bot");
-
-  const res = await fetch("/generate-image", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({prompt})
-  });
-
-  const data = await res.json();
-
-  if (data.url) {
-    chat.innerHTML += `<img src="${data.url}" width="300">`;
-  } else {
-    addMsg("❌ Image failed","bot");
+  if (data.image) {
+    chat.innerHTML += `<img src="${data.image}" width="300">`;
+    return;
   }
 
-  scrollBottom();
+  typeText(data.reply);
+
+  if (voice) speak(data.reply);
 }
 
-// ===== IMAGE UPLOAD / EDIT =====
+// VOICE
+function startVoice() {
+  let rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  rec.lang="en-US";
+
+  rec.onresult = (e)=>{
+    input.value = e.results[0][0].transcript;
+    send(true);
+  };
+
+  rec.start();
+}
+
+// SPEAK
+function speak(text) {
+  let s = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(s);
+}
+
+// UPLOAD
 async function upload() {
-  const fileInput = document.getElementById("file");
-  const editPrompt = document.getElementById("editPrompt").value;
+  let f = document.getElementById("file").files[0];
+  let form = new FormData();
+  form.append("image",f);
 
-  if (!fileInput.files[0]) return;
-
-  const form = new FormData();
-  form.append("image", fileInput.files[0]);
-  form.append("prompt", editPrompt);
-
-  addMsg("Processing image...","bot");
-
-  const res = await fetch("/upload", {
-    method:"POST",
-    body:form
-  });
-
+  const res = await fetch("/upload",{method:"POST",body:form});
   const data = await res.json();
 
-  addMsg(data.result,"bot");
+  add(data.result,"bot");
 }
-
-// ===== UI HELPERS =====
-function addMsg(text,type){
-  const div = document.createElement("div");
-  div.className = "msg " + type;
-  div.innerText = text;
-  chat.appendChild(div);
-  scrollBottom();
-}
-
-function scrollBottom(){
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// ENTER KEY
-input.addEventListener("keypress", e=>{
-  if(e.key==="Enter") send();
-});
 
 </script>
 

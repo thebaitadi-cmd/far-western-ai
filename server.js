@@ -13,63 +13,106 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-// ======================
-// 🔥 TEXT AI (GROQ FIXED + FALLBACK)
-// ======================
+// ===== INTENT =====
+function detectIntent(msg) {
+  msg = msg.toLowerCase();
+
+  if (msg.includes("image") || msg.includes("photo")) return "image";
+  if (msg.includes("latest") || msg.includes("news") || msg.includes("today")) return "realtime";
+
+  return "text";
+}
+
+// ===== GOOGLE =====
+async function searchGoogle(q) {
+  try {
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": process.env.SERPER_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ q })
+    });
+
+    const data = await res.json();
+
+    return data.organic?.slice(0, 3)
+      .map(r => r.title + " - " + r.snippet)
+      .join("\n");
+
+  } catch {
+    return null;
+  }
+}
+
+// ===== MULTI AI =====
 async function chatAI(prompt) {
 
-  if (!process.env.GROQ_KEYS) {
-    return "❌ No GROQ keys found";
-  }
-
-  const keys = process.env.GROQ_KEYS.split(",");
-
-  // ✅ Working models (NEW)
-  const models = [
-    "llama-3.1-70b-versatile",
-    "llama-3.1-8b-instant"
-  ];
-
-  for (let model of models) {
-    for (let key of keys) {
+  // 1️⃣ GROQ
+  if (process.env.GROQ_KEYS) {
+    for (let key of process.env.GROQ_KEYS.split(",")) {
       try {
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${key.trim()}`,
+            "Authorization": `Bearer ${key}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model,
+            model: "llama-3.1-8b-instant",
             messages: [{ role: "user", content: prompt }]
           })
         });
-
-        const data = await res.json();
-
-        if (data.choices && data.choices.length > 0) {
-          return data.choices[0].message.content;
-        } else {
-          console.log("MODEL FAILED:", model, data);
-        }
-
-      } catch (err) {
-        console.log("ERROR:", err.message);
-      }
+        const d = await r.json();
+        if (d.choices) return d.choices[0].message.content;
+      } catch {}
     }
   }
 
-  return "❌ All AI APIs failed";
+  // 2️⃣ GEMINI
+  if (process.env.GEMINI_KEY) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_KEY}`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+      const d = await r.json();
+      if (d.candidates) return d.candidates[0].content.parts[0].text;
+    } catch {}
+  }
+
+  // 3️⃣ OPENROUTER
+  if (process.env.OPENROUTER_KEYS) {
+    for (let key of process.env.OPENROUTER_KEYS.split(",")) {
+      try {
+        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${key}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "mistralai/mistral-7b-instruct",
+            messages: [{ role: "user", content: prompt }]
+          })
+        });
+        const d = await r.json();
+        if (d.choices) return d.choices[0].message.content;
+      } catch {}
+    }
+  }
+
+  return "❌ All AI failed";
 }
 
-// ======================
-// 🖼 IMAGE GENERATE
-// ======================
+// ===== IMAGE =====
 async function generateImage(prompt) {
-  if (!process.env.TOGETHER_KEY) return null;
-
   try {
-    const res = await fetch("https://api.together.xyz/v1/images/generations", {
+    const r = await fetch("https://api.together.xyz/v1/images/generations", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.TOGETHER_KEY}`,
@@ -80,61 +123,58 @@ async function generateImage(prompt) {
         model: "stabilityai/stable-diffusion-xl-base-1.0"
       })
     });
-
-    const data = await res.json();
-    return data.data?.[0]?.url || null;
-
-  } catch (err) {
-    console.log("IMAGE ERROR:", err.message);
+    const d = await r.json();
+    return d.data?.[0]?.url;
+  } catch {
     return null;
   }
 }
 
-// ======================
-// 🧠 IMAGE ANALYSIS
-// ======================
-async function analyzeImage(filePath) {
+// ===== UPLOAD =====
+async function analyzeImage(path) {
   try {
     const form = new FormData();
-    form.append("image", fs.createReadStream(filePath));
+    form.append("image", fs.createReadStream(path));
 
-    const res = await fetch("https://api.deepai.org/api/image-recognition", {
+    const r = await fetch("https://api.deepai.org/api/image-recognition", {
       method: "POST",
       headers: { "api-key": process.env.DEEPAI_KEY },
       body: form
     });
 
-    const data = await res.json();
-    return JSON.stringify(data.output);
+    const d = await r.json();
+    return JSON.stringify(d.output);
 
-  } catch (err) {
-    console.log("ANALYSIS ERROR:", err.message);
-    return "❌ Image analysis failed";
+  } catch {
+    return "❌ Image failed";
   }
 }
 
-// ======================
-// 🚀 ROUTES
-// ======================
-
-// TEXT CHAT
+// ===== ROUTE =====
 app.post("/chat", async (req, res) => {
-  const reply = await chatAI(req.body.message);
+  const msg = req.body.message;
+  const intent = detectIntent(msg);
+
+  if (intent === "realtime") {
+    const g = await searchGoogle(msg);
+    if (g) {
+      const final = await chatAI("Answer with latest info:\n" + g);
+      return res.json({ reply: final });
+    }
+  }
+
+  if (intent === "image") {
+    const url = await generateImage(msg);
+    return res.json({ image: url });
+  }
+
+  const reply = await chatAI(msg);
   res.json({ reply });
 });
 
-// IMAGE GENERATE
-app.post("/generate-image", async (req, res) => {
-  const url = await generateImage(req.body.prompt);
-  res.json({ url });
-});
-
-// IMAGE UPLOAD + ANALYZE
 app.post("/upload", upload.single("image"), async (req, res) => {
   const result = await analyzeImage(req.file.path);
   res.json({ result });
 });
 
-app.listen(PORT, () => {
-  console.log("🔥 Server running on port", PORT);
-});
+app.listen(PORT, () => console.log("🔥 Running"));
