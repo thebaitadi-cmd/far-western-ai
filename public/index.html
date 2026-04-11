@@ -31,7 +31,6 @@ h1 {
   border-radius:12px;
   line-height:1.6;
   white-space:pre-wrap;
-  word-wrap:break-word;
   max-width:85%;
 }
 
@@ -82,11 +81,6 @@ button {
   <input id="input" placeholder="Type..." />
   <button onclick="send()">Send</button>
   <button onclick="startVoice()">🎤</button>
-
-  <br><br>
-
-  <input type="file" id="file">
-  <button onclick="upload()">Upload</button>
 </div>
 
 <script>
@@ -107,7 +101,7 @@ function add(text,type) {
 // =====================
 // TYPING EFFECT
 // =====================
-function typeText(text) {
+function typeText(text, callback) {
   const d = document.createElement("div");
   d.className = "msg bot";
   chat.appendChild(d);
@@ -119,47 +113,54 @@ function typeText(text) {
     i++;
     if(i >= text.length){
       clearInterval(interval);
+      if(callback) callback(); // 🔥 speak after typing
     }
-  },15);
+  },12);
 
   chat.scrollTop = chat.scrollHeight;
 }
 
 // =====================
-// 🔊 VOICE FIX (NO MIX)
+// 🔥 SMART VOICE (LANG DETECT)
 // =====================
-let selectedVoice;
-
-function loadVoices() {
-  const voices = speechSynthesis.getVoices();
-
-  // 🔥 single fixed voice (no mixing)
-  selectedVoice =
-    voices.find(v => v.lang === "en-US") ||
-    voices.find(v => v.lang === "hi-IN") ||
-    voices[0];
+function detectLang(text){
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi
+  if (/[\u0900-\u097F]/.test(text)) return "ne-NP"; // Nepali approx
+  return "en-US";
 }
 
-speechSynthesis.onvoiceschanged = loadVoices;
+function getBestVoice(lang){
+  const voices = speechSynthesis.getVoices();
 
-function speak(text) {
-  speechSynthesis.cancel(); // stop old voice
+  return (
+    voices.find(v => v.lang === lang) ||
+    voices.find(v => v.lang.startsWith(lang.split("-")[0])) ||
+    voices[0]
+  );
+}
 
-  if (!selectedVoice) loadVoices();
+function speak(text){
+  speechSynthesis.cancel(); // stop previous
+
+  const lang = detectLang(text);
+  const voice = getBestVoice(lang);
 
   const speech = new SpeechSynthesisUtterance(text);
 
-  speech.voice = selectedVoice;
-  speech.lang = selectedVoice.lang;
+  speech.voice = voice;
+  speech.lang = voice.lang;
 
-  speech.rate = 0.9;
-  speech.pitch = 1;
+  speech.rate = 0.95;
+  speech.pitch = 0.9;
 
   speechSynthesis.speak(speech);
 }
 
+// preload voices
+speechSynthesis.onvoiceschanged = () => {};
+
 // =====================
-// SEND MESSAGE
+// SEND
 // =====================
 async function send() {
   const input = document.getElementById("input");
@@ -179,8 +180,10 @@ async function send() {
 
     const data = await res.json();
 
-    typeText(data.reply);
-    speak(data.reply);
+    // 🔥 typing → then speak
+    typeText(data.reply, ()=>{
+      speak(data.reply);
+    });
 
   } catch {
     add("Server error","bot");
@@ -199,8 +202,7 @@ function startVoice(){
   }
 
   const rec = new SpeechRecognition();
-
-  rec.lang = navigator.language || "en-US";
+  rec.lang = "auto";
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
@@ -209,22 +211,6 @@ function startVoice(){
   };
 
   rec.start();
-}
-
-// =====================
-// IMAGE UPLOAD
-// =====================
-async function upload(){
-  const file = document.getElementById("file").files[0];
-  if(!file) return;
-
-  const form = new FormData();
-  form.append("image",file);
-
-  const res = await fetch("/upload",{method:"POST",body:form});
-  const data = await res.json();
-
-  add(data.result,"bot");
 }
 
 </script>

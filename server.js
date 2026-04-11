@@ -16,7 +16,7 @@ let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 6) memory.shift(); // optimized
+  if (memory.length > 6) memory.shift();
 }
 
 function getContext() {
@@ -45,7 +45,7 @@ function clean(text) {
 }
 
 // =====================
-// 🌐 REALTIME GOOGLE
+// 🌐 GOOGLE (REALTIME)
 // =====================
 async function google(q) {
   try {
@@ -70,8 +70,6 @@ async function google(q) {
 // =====================
 // 🤖 AI PROVIDERS
 // =====================
-
-// 🔥 GROQ (PRIMARY)
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -84,7 +82,7 @@ async function groq(prompt) {
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
           messages: [
-            { role: "system", content: "You are helpful AI." },
+            { role: "system", content: "You are a smart assistant." },
             { role: "user", content: prompt }
           ],
           temperature: 0.5
@@ -92,7 +90,6 @@ async function groq(prompt) {
       });
 
       const d = await r.json();
-
       if (d?.choices?.[0]?.message?.content) {
         return d.choices[0].message.content;
       }
@@ -100,7 +97,6 @@ async function groq(prompt) {
   }
 }
 
-// 🔥 OPENROUTER
 async function openrouter(prompt) {
   for (let key of split("OPENROUTER_KEYS")) {
     try {
@@ -118,7 +114,6 @@ async function openrouter(prompt) {
       });
 
       const d = await r.json();
-
       if (d?.choices?.[0]?.message?.content) {
         return d.choices[0].message.content;
       }
@@ -126,7 +121,6 @@ async function openrouter(prompt) {
   }
 }
 
-// 🔥 GEMINI
 async function gemini(prompt) {
   try {
     if (!process.env.GEMINI_KEY) return;
@@ -143,12 +137,10 @@ async function gemini(prompt) {
     );
 
     const d = await r.json();
-
     return d?.candidates?.[0]?.content?.parts?.[0]?.text;
   } catch {}
 }
 
-// 🔥 COHERE
 async function cohere(prompt) {
   try {
     if (!process.env.COHERE_KEY) return;
@@ -172,11 +164,11 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🧠 MAIN AI
+// 🧠 MAIN AI (FINAL BRAIN)
 // =====================
 async function AI(prompt) {
-  const p = prompt.toLowerCase();
 
+  const p = prompt.toLowerCase();
   let mode = "chat";
 
   if (p.includes("summarize") || p.includes("summary")) mode = "summary";
@@ -184,30 +176,56 @@ async function AI(prompt) {
 
   const ctx = getContext();
 
-  // 🔥 SUMMARY FIX
+  // 🧠 THINKING
+  let intent = "";
+  try {
+    intent = await groq(`
+Understand user intent in ONE SHORT LINE.
+
+User: "${prompt}"
+
+Examples:
+- greeting
+- asking question
+- asking help
+- unclear
+
+Answer only intent.
+`);
+  } catch {}
+
+  // 🔥 SUMMARY
   if (mode === "summary") {
     prompt = `Summarize in 1 line:\n${ctx}`;
   }
 
-  // 🔥 REALTIME FIX
+  // 🌐 REALTIME
   let extra = "";
   if (mode === "realtime") {
     const g = await google(prompt);
-    extra = g;
+    if (g) extra = "\nLatest:\n" + g;
   }
 
+  // 🎯 FINAL PROMPT
   const fullPrompt = `
-You are smart AI.
+You are a HIGH QUALITY AI.
 
-- Reply same language
-- Short answer (1 line)
-- Be accurate
-- No guessing
+STRICT RULES:
+- Understand intent BEFORE replying
+- Reply ONLY relevant
+- VERY SHORT (1 line)
+- SAME language
+- Natural human tone
+- NO guessing
+- If unclear → ask short question
 
+Conversation:
 ${ctx}
 
-User: ${prompt}
+Intent:
+${intent}
 
+User: ${prompt}
 ${extra}
 `;
 
@@ -225,11 +243,11 @@ ${extra}
   r = await cohere(fullPrompt);
   if (r) return clean(r);
 
-  return "Server busy, try again";
+  return "Try again";
 }
 
 // =====================
-// ROUTES
+// 🚀 ROUTE
 // =====================
 app.post("/chat", async (req, res) => {
   try {
@@ -245,9 +263,9 @@ app.post("/chat", async (req, res) => {
 
   } catch (e) {
     console.log("ERROR:", e);
-    res.json({ reply: "Error occurred" });
+    res.json({ reply: "Server error" });
   }
 });
 
 // =====================
-app.listen(PORT, () => console.log("🔥 AI RUNNING ON PORT " + PORT));
+app.listen(PORT, () => console.log("🔥 FINAL AI RUNNING ON " + PORT));
