@@ -20,7 +20,7 @@ let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 6) memory.shift(); // limit
+  if (memory.length > 6) memory.shift();
 }
 
 function context(prompt) {
@@ -42,11 +42,11 @@ function clean(text) {
     .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
     .replace(/ +/g, " ")
     .trim()
-    .slice(0, 350); // 🔥 short reply
+    .slice(0, 250); // 🔥 short reply tighter
 }
 
 // =====================
-// 🌐 GOOGLE (ONLY WHEN NEEDED)
+// 🌐 GOOGLE
 // =====================
 async function google(q) {
   try {
@@ -64,7 +64,7 @@ async function google(q) {
 }
 
 // =====================
-// 📰 NEWS (ONLY WHEN NEEDED)
+// 📰 NEWS
 // =====================
 async function news(q) {
   try {
@@ -152,7 +152,7 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🎨 IMAGE GENERATE
+// 🎨 IMAGE
 // =====================
 async function image(prompt) {
   try {
@@ -206,25 +206,36 @@ async function analyze(path) {
 }
 
 // =====================
-// 🧠 MAIN AI ROUTER (FIXED)
+// 🧠 MAIN AI (FINAL FIX)
 // =====================
 async function AI(prompt) {
 
   let extra = "";
 
-  // 🔥 only for real-time queries
   if (
-    prompt.includes("news") ||
-    prompt.includes("latest") ||
-    prompt.includes("recent") ||
-    prompt.includes("today")
+    prompt.toLowerCase().includes("news") ||
+    prompt.toLowerCase().includes("latest") ||
+    prompt.toLowerCase().includes("today") ||
+    prompt.toLowerCase().includes("recent")
   ) {
     const g = await google(prompt);
     const n = await news(prompt);
     extra = g + "\n" + n;
   }
 
-  const full = context(prompt + "\n" + extra);
+  // 🔥 LANGUAGE + SHORT RULE
+  const systemRule = `
+You are a smart AI.
+
+Rules:
+- Detect user's language automatically (Hindi, English, Nepali, Hinglish, etc.)
+- ALWAYS reply in SAME language
+- Keep answer SHORT (max 2-3 lines)
+- Make reply natural and human-like
+- Fix spacing properly
+`;
+
+  const full = systemRule + "\n" + context(prompt + "\n" + extra);
 
   let r;
 
@@ -249,7 +260,6 @@ async function AI(prompt) {
 app.post("/chat", async (req, res) => {
   const msg = req.body.message;
 
-  // image request detect
   if (msg.toLowerCase().includes("image")) {
     const url = await image(msg);
     return res.json({ image: url });
@@ -266,4 +276,4 @@ app.post("/upload", upload.single("image"), async (req, res) => {
   res.json({ result });
 });
 
-app.listen(PORT, ()=>console.log("🔥 AI FIXED & RUNNING"));
+app.listen(PORT, () => console.log("🔥 FINAL AI RUNNING"));
