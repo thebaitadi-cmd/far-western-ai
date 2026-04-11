@@ -67,6 +67,7 @@ button {
   border:none;
   border-radius:8px;
   color:white;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -78,7 +79,7 @@ button {
 <div id="chat" class="chat"></div>
 
 <div id="bottom">
-  <input id="input" placeholder="Type..." />
+  <input id="input" placeholder="Type your message..." />
   <button onclick="send()">Send</button>
   <button onclick="startVoice()">🎤</button>
 </div>
@@ -99,7 +100,7 @@ function add(text,type) {
 }
 
 // =====================
-// TYPING EFFECT
+// TYPING EFFECT (SMOOTH)
 // =====================
 function typeText(text, callback) {
   const d = document.createElement("div");
@@ -108,63 +109,64 @@ function typeText(text, callback) {
 
   let i = 0;
 
+  const speed = 10;
+
   const interval = setInterval(()=>{
     d.innerText += text[i];
     i++;
+
     if(i >= text.length){
       clearInterval(interval);
-      if(callback) callback(); // 🔥 speak after typing
+      if(callback) callback();
     }
-  },12);
+  }, speed);
 
   chat.scrollTop = chat.scrollHeight;
 }
 
 // =====================
-// 🔥 SMART VOICE (LANG DETECT)
+// 🔊 STABLE HUMAN VOICE
 // =====================
-function detectLang(text){
-  if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi
-  if (/[\u0900-\u097F]/.test(text)) return "ne-NP"; // Nepali approx
-  return "en-US";
-}
+let selectedVoice = null;
 
-function getBestVoice(lang){
+function loadVoices() {
   const voices = speechSynthesis.getVoices();
 
-  return (
-    voices.find(v => v.lang === lang) ||
-    voices.find(v => v.lang.startsWith(lang.split("-")[0])) ||
-    voices[0]
-  );
+  // 🔥 ONE fixed voice (no switching)
+  selectedVoice =
+    voices.find(v => v.name.includes("Google US English")) ||
+    voices.find(v => v.lang === "en-US") ||
+    voices[0];
 }
 
-function speak(text){
+speechSynthesis.onvoiceschanged = loadVoices;
+
+function speak(text) {
+
   speechSynthesis.cancel(); // stop previous
 
-  const lang = detectLang(text);
-  const voice = getBestVoice(lang);
+  if (!selectedVoice) loadVoices();
 
   const speech = new SpeechSynthesisUtterance(text);
 
-  speech.voice = voice;
-  speech.lang = voice.lang;
+  speech.voice = selectedVoice;
+  speech.lang = selectedVoice.lang;
 
-  speech.rate = 0.95;
-  speech.pitch = 0.9;
+  // 🔥 human tuning
+  speech.rate = 0.9;
+  speech.pitch = 0.95;
+  speech.volume = 1;
 
   speechSynthesis.speak(speech);
 }
 
-// preload voices
-speechSynthesis.onvoiceschanged = () => {};
-
 // =====================
-// SEND
+// SEND MESSAGE
 // =====================
 async function send() {
+
   const input = document.getElementById("input");
-  const text = input.value;
+  const text = input.value.trim();
 
   if(!text) return;
 
@@ -180,12 +182,17 @@ async function send() {
 
     const data = await res.json();
 
-    // 🔥 typing → then speak
+    if(!data.reply){
+      add("No response","bot");
+      return;
+    }
+
+    // typing → then speak
     typeText(data.reply, ()=>{
       speak(data.reply);
     });
 
-  } catch {
+  } catch (e) {
     add("Server error","bot");
   }
 }
@@ -202,7 +209,8 @@ function startVoice(){
   }
 
   const rec = new SpeechRecognition();
-  rec.lang = "auto";
+
+  rec.lang = "en-US"; // 🔥 stable
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
@@ -212,6 +220,15 @@ function startVoice(){
 
   rec.start();
 }
+
+// =====================
+// ENTER KEY SEND
+// =====================
+document.getElementById("input").addEventListener("keypress", function(e){
+  if(e.key === "Enter"){
+    send();
+  }
+});
 
 </script>
 

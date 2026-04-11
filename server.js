@@ -3,20 +3,20 @@ const express = require("express");
 const fetch = require("node-fetch");
 
 const app = express();
-
 app.use(express.json());
 app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// 🧠 MEMORY
+// 🧠 MEMORY + USER STYLE
 // =====================
 let memory = [];
+let userStyle = "normal";
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 6) memory.shift();
+  if (memory.length > 8) memory.shift();
 }
 
 function getContext() {
@@ -30,7 +30,7 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// ✂️ CLEAN RESPONSE
+// ✂️ CLEAN
 // =====================
 function clean(text) {
   if (!text) return "";
@@ -38,14 +38,13 @@ function clean(text) {
   return text
     .replace(/\n+/g, " ")
     .replace(/[ ]+/g, " ")
-    .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
     .replace(/AI:/gi, "")
     .trim()
-    .slice(0, 140);
+    .slice(0, 200);
 }
 
 // =====================
-// 🌐 GOOGLE (REALTIME)
+// 🌐 REALTIME GOOGLE
 // =====================
 async function google(q) {
   try {
@@ -70,6 +69,7 @@ async function google(q) {
 // =====================
 // 🤖 AI PROVIDERS
 // =====================
+
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -81,11 +81,8 @@ async function groq(prompt) {
         },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
-          messages: [
-            { role: "system", content: "You are a smart assistant." },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.5
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.6
         })
       });
 
@@ -109,7 +106,7 @@ async function openrouter(prompt) {
         body: JSON.stringify({
           model: "mistralai/mistral-7b-instruct",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.5
+          temperature: 0.6
         })
       });
 
@@ -153,8 +150,7 @@ async function cohere(prompt) {
       },
       body: JSON.stringify({
         model: "command-r",
-        message: prompt,
-        temperature: 0.5
+        message: prompt
       })
     });
 
@@ -164,86 +160,97 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🧠 MAIN AI (FINAL BRAIN)
+// 🧠 INTENT DETECTOR (BRAIN)
 // =====================
-async function AI(prompt) {
-
-  const p = prompt.toLowerCase();
-  let mode = "chat";
-
-  if (p.includes("summarize") || p.includes("summary")) mode = "summary";
-  else if (p.includes("latest") || p.includes("today") || p.includes("news")) mode = "realtime";
-
-  const ctx = getContext();
-
-  // 🧠 THINKING
-  let intent = "";
-  try {
-    intent = await groq(`
-Understand user intent in ONE SHORT LINE.
+async function detectIntent(prompt) {
+  const result = await groq(`
+Classify user intent:
+- coding
+- general
+- realtime
+- summary
+- unclear
 
 User: "${prompt}"
 
-Examples:
-- greeting
-- asking question
-- asking help
-- unclear
-
-Answer only intent.
+Answer only one word.
 `);
-  } catch {}
 
-  // 🔥 SUMMARY
-  if (mode === "summary") {
+  return result?.toLowerCase().trim();
+}
+
+// =====================
+// 🧠 PARALLEL THINKING
+// =====================
+async function parallelThink(prompt) {
+  const [g, o, gm] = await Promise.all([
+    groq(prompt),
+    openrouter(prompt),
+    gemini(prompt)
+  ]);
+
+  return [g, o, gm].filter(Boolean);
+}
+
+// =====================
+// 🧠 BEST ANSWER SELECTOR
+// =====================
+function selectBest(responses) {
+  if (!responses.length) return null;
+
+  // 🔥 simple scoring: longest + informative
+  return responses.sort((a, b) => b.length - a.length)[0];
+}
+
+// =====================
+// 🧠 MASTER AI
+// =====================
+async function AI(prompt) {
+
+  const intent = await detectIntent(prompt);
+  const ctx = getContext();
+
+  let extra = "";
+
+  if (intent === "realtime") {
+    const g = await google(prompt);
+    extra = g;
+  }
+
+  if (intent === "summary") {
     prompt = `Summarize in 1 line:\n${ctx}`;
   }
 
-  // 🌐 REALTIME
-  let extra = "";
-  if (mode === "realtime") {
-    const g = await google(prompt);
-    if (g) extra = "\nLatest:\n" + g;
-  }
+  // 🧠 build final prompt
+  const finalPrompt = `
+You are a HIGH LEVEL AI.
 
-  // 🎯 FINAL PROMPT
-  const fullPrompt = `
-You are a HIGH QUALITY AI.
+Rules:
+- Understand deeply
+- Reply in same language
+- Short but powerful
+- No guessing
 
-STRICT RULES:
-- Understand intent BEFORE replying
-- Reply ONLY relevant
-- VERY SHORT (1 line)
-- SAME language
-- Natural human tone
-- NO guessing
-- If unclear → ask short question
-
-Conversation:
+Context:
 ${ctx}
 
-Intent:
-${intent}
-
 User: ${prompt}
+
+Extra:
 ${extra}
 `;
 
-  let r;
+  // 🚀 parallel thinking
+  const responses = await parallelThink(finalPrompt);
 
-  r = await groq(fullPrompt);
-  if (r) return clean(r);
+  // 🎯 best answer
+  let best = selectBest(responses);
 
-  r = await openrouter(fullPrompt);
-  if (r) return clean(r);
+  if (!best) {
+    best = await cohere(finalPrompt);
+  }
 
-  r = await gemini(fullPrompt);
-  if (r) return clean(r);
-
-  r = await cohere(fullPrompt);
-  if (r) return clean(r);
-
-  return "Try again";
+  return clean(best || "Try again");
 }
 
 // =====================
@@ -262,10 +269,9 @@ app.post("/chat", async (req, res) => {
     res.json({ reply });
 
   } catch (e) {
-    console.log("ERROR:", e);
+    console.log(e);
     res.json({ reply: "Server error" });
   }
 });
 
-// =====================
-app.listen(PORT, () => console.log("🔥 FINAL AI RUNNING ON " + PORT));
+app.listen(PORT, () => console.log("🔥 MASTER AI RUNNING ON " + PORT));
