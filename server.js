@@ -1,148 +1,168 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
 const PORT = process.env.PORT || 10000;
 
 // KEYS
-const GROQ_KEYS = process.env.GROQ_KEYS?.split(",") || [];
-const OPENROUTER_KEYS = process.env.OPENROUTER_KEYS?.split(",") || [];
+const GROQ_KEYS = process.env.GROQ_KEYS ? process.env.GROQ_KEYS.split(",") : [];
+const OPENROUTER_KEYS = process.env.OPENROUTER_KEYS ? process.env.OPENROUTER_KEYS.split(",") : [];
 const GEMINI_KEY = process.env.GEMINI_KEY;
-const TOGETHER_KEY = process.env.TOGETHER_KEY;
-const COHERE_KEY = process.env.COHERE_KEY;
+const SERPAPI_KEY = process.env.SERPAPI_KEY;
+const SERPER_KEY = process.env.SERPER_KEY;
+const NEWSDATA_KEY = process.env.NEWSDATA_KEY;
+const REPLICATE_KEY = process.env.REPLICATE_KEY;
 
-let groqIndex = 0;
-let openIndex = 0;
-
-function nextKey(list, indexRef) {
-  const key = list[indexRef.value];
-  indexRef.value = (indexRef.value + 1) % list.length;
-  return key;
+// RANDOM KEY
+function getRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// MAIN CHAT
-app.post("/api/chat", async (req, res) => {
+// ================= AI =================
+async function askAI(prompt) {
+
+  // GEMINI (BEST FREE)
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
+    const data = await res.json();
+    if (data.candidates) {
+      return data.candidates[0].content.parts[0].text;
+    }
+  } catch (e) {}
+
+  // GROQ
+  try {
+    const key = getRandom(GROQ_KEYS);
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-8b-8192",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    if (data.choices) return data.choices[0].message.content;
+  } catch (e) {}
+
+  return "❌ AI error";
+}
+
+// ================= GOOGLE SEARCH =================
+async function googleSearch(query) {
+  try {
+    if (SERPER_KEY) {
+      const res = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": SERPER_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ q: query })
+      });
+      const data = await res.json();
+      return data.organic?.slice(0, 3).map(x => x.snippet).join("\n");
+    }
+
+    if (SERPAPI_KEY) {
+      const res = await fetch(`https://serpapi.com/search.json?q=${query}&api_key=${SERPAPI_KEY}`);
+      const data = await res.json();
+      return data.organic_results?.slice(0, 3).map(x => x.snippet).join("\n");
+    }
+
+  } catch (e) {}
+
+  return null;
+}
+
+// ================= NEWS =================
+async function getNews(query) {
+  try {
+    const res = await fetch(`https://newsdata.io/api/1/news?apikey=${NEWSDATA_KEY}&q=${query}`);
+    const data = await res.json();
+    return data.results?.slice(0, 3).map(n => n.title).join("\n");
+  } catch (e) {}
+  return null;
+}
+
+// ================= IMAGE =================
+async function generateImage(prompt) {
+  try {
+    const res = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Token ${REPLICATE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        version: "stability-ai/sdxl",
+        input: { prompt }
+      })
+    });
+
+    const data = await res.json();
+    return data.urls?.get || "Generating...";
+  } catch (e) {
+    return "❌ Image error";
+  }
+}
+
+// ================= SMART ROUTING =================
+function isNews(query) {
+  return query.toLowerCase().includes("news") || query.includes("today");
+}
+
+// ================= ROUTES =================
+app.post("/chat", async (req, res) => {
   const { message } = req.body;
 
-  // 🔹 1. GROQ
-  try {
-    if (GROQ_KEYS.length > 0) {
-      const key = GROQ_KEYS[groqIndex];
-      groqIndex = (groqIndex + 1) % GROQ_KEYS.length;
+  let reply;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [{ role: "user", content: message }],
-        }),
-      });
-
-      const d = await r.json();
-      if (d.choices) return res.json({ reply: d.choices[0].message.content });
+  // NEWS
+  if (isNews(message)) {
+    const news = await getNews(message);
+    if (news) {
+      reply = "📰 Latest News:\n" + news;
+      return res.json({ reply });
     }
-  } catch (e) {
-    console.log("GROQ FAIL");
   }
 
-  // 🔹 2. OPENROUTER
-  try {
-    if (OPENROUTER_KEYS.length > 0) {
-      const key = OPENROUTER_KEYS[openIndex];
-      openIndex = (openIndex + 1) % OPENROUTER_KEYS.length;
+  // GOOGLE SEARCH
+  const search = await googleSearch(message);
 
-      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct",
-          messages: [{ role: "user", content: message }],
-        }),
-      });
-
-      const d = await r.json();
-      if (d.choices) return res.json({ reply: d.choices[0].message.content });
-    }
-  } catch (e) {
-    console.log("OPENROUTER FAIL");
+  if (search) {
+    const ai = await askAI(message + "\n\nUse this data:\n" + search);
+    return res.json({ reply: ai });
   }
 
-  // 🔹 3. GEMINI
-  try {
-    if (GEMINI_KEY) {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: message }] }],
-        }),
-      });
+  // NORMAL AI
+  reply = await askAI(message);
 
-      const d = await r.json();
-      const text = d?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return res.json({ reply: text });
-    }
-  } catch (e) {
-    console.log("GEMINI FAIL");
-  }
+  res.json({ reply });
+});
 
-  // 🔹 4. TOGETHER
-  try {
-    if (TOGETHER_KEY) {
-      const r = await fetch("https://api.together.xyz/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${TOGETHER_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "mistralai/Mistral-7B-Instruct-v0.1",
-          messages: [{ role: "user", content: message }],
-        }),
-      });
-
-      const d = await r.json();
-      if (d.choices) return res.json({ reply: d.choices[0].message.content });
-    }
-  } catch (e) {
-    console.log("TOGETHER FAIL");
-  }
-
-  // 🔹 5. COHERE
-  try {
-    if (COHERE_KEY) {
-      const r = await fetch("https://api.cohere.ai/v1/chat", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${COHERE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: message,
-        }),
-      });
-
-      const d = await r.json();
-      if (d.text) return res.json({ reply: d.text });
-    }
-  } catch (e) {
-    console.log("COHERE FAIL");
-  }
-
-  // ❌ FINAL FAIL
-  res.json({ reply: "All AI services failed 😢" });
+// IMAGE
+app.post("/image", async (req, res) => {
+  const { prompt } = req.body;
+  const img = await generateImage(prompt);
+  res.json({ image: img });
 });
 
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("🚀 Server running on port " + PORT);
 });

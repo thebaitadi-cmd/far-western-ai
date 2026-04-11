@@ -1,40 +1,29 @@
 async function send() {
-  const input = document.getElementById("input").value;
+  let input = document.getElementById("input").value;
 
-  const res = await fetch("/api/chat", {
+  document.getElementById("chat").innerHTML += `<p>👤 ${input}</p>`;
+
+  let res = await fetch("/chat", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message: input }),
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ message: input })
   });
 
-  const data = await res.json();
+  let data = await res.json();
 
-  document.getElementById("output").innerText = "🤖 " + data.reply;
+  document.getElementById("chat").innerHTML += `<p>🤖 ${data.reply}</p>`;
 }
 
-// VOICE INPUT
-function startVoice() {
-  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+async function img() {
+  let input = document.getElementById("input").value;
 
-  recognition.start();
+  let res = await fetch("/image", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ prompt: input })
+  });
 
-  recognition.onresult = async function (event) {
-    const text = event.results[0][0].transcript;
+  let data = await res.json();
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message: text }),
-    });
-
-    const data = await res.json();
-
-    // VOICE OUTPUT ONLY
-    const speech = new SpeechSynthesisUtterance(data.reply);
-    speechSynthesis.speak(speech);
-  };
+  document.getElementById("chat").innerHTML += `<img src="${data.image}" width="300"/>`;
 }
