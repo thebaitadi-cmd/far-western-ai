@@ -13,20 +13,32 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-// ===== INTENT =====
-function detectIntent(msg) {
-  msg = msg.toLowerCase();
+// =====================
+// 🧠 MEMORY
+// =====================
+let memory = [];
 
-  if (msg.includes("image") || msg.includes("photo")) return "image";
-  if (msg.includes("latest") || msg.includes("news") || msg.includes("today")) return "realtime";
-
-  return "text";
+function addMemory(u, b) {
+  memory.push({ u, b });
+  if (memory.length > 8) memory.shift();
 }
 
-// ===== GOOGLE =====
-async function searchGoogle(q) {
+function context(prompt) {
+  return memory.map(m => `User:${m.u}\nAI:${m.b}`).join("\n") + "\nUser:" + prompt;
+}
+
+// =====================
+// 🔑 HELPERS
+// =====================
+const split = (k) =>
+  process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
+
+// =====================
+// 🌐 GOOGLE (SERPER)
+// =====================
+async function google(q) {
   try {
-    const res = await fetch("https://google.serper.dev/search", {
+    const r = await fetch("https://google.serper.dev/search", {
       method: "POST",
       headers: {
         "X-API-KEY": process.env.SERPER_KEY,
@@ -34,147 +46,204 @@ async function searchGoogle(q) {
       },
       body: JSON.stringify({ q })
     });
+    const d = await r.json();
+    return d.organic?.map(x => x.snippet).join("\n") || "";
+  } catch { return ""; }
+}
 
-    const data = await res.json();
+// =====================
+// 📰 NEWS (NEWSDATA)
+// =====================
+async function news(q) {
+  try {
+    const r = await fetch(`https://newsdata.io/api/1/news?apikey=${process.env.NEWSDATA_KEY}&q=${q}`);
+    const d = await r.json();
+    return d.results?.slice(0,3).map(n => n.title).join("\n") || "";
+  } catch { return ""; }
+}
 
-    return data.organic?.slice(0, 3)
-      .map(r => r.title + " - " + r.snippet)
-      .join("\n");
+// =====================
+// 🤖 AI SYSTEM
+// =====================
 
-  } catch {
-    return null;
+async function groq(prompt) {
+  for (let key of split("GROQ_KEYS")) {
+    for (let model of ["llama-3.1-8b-instant","llama-3.1-70b-versatile"]) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method:"POST",
+          headers:{
+            Authorization:`Bearer ${key}`,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            model,
+            messages:[{role:"user",content:prompt}]
+          })
+        });
+        const d = await r.json();
+        if (d.choices) return d.choices[0].message.content;
+      } catch {}
+    }
   }
 }
 
-// ===== MULTI AI =====
-async function chatAI(prompt) {
-
-  // 1️⃣ GROQ
-  if (process.env.GROQ_KEYS) {
-    for (let key of process.env.GROQ_KEYS.split(",")) {
-      try {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${key}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: prompt }]
-          })
-        });
-        const d = await r.json();
-        if (d.choices) return d.choices[0].message.content;
-      } catch {}
-    }
-  }
-
-  // 2️⃣ GEMINI
-  if (process.env.GEMINI_KEY) {
+async function openrouter(prompt) {
+  for (let key of split("OPENROUTER_KEYS")) {
     try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_KEY}`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method:"POST",
+        headers:{
+          Authorization:`Bearer ${key}`,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          model:"openai/gpt-4o-mini",
+          messages:[{role:"user",content:prompt}]
         })
       });
       const d = await r.json();
-      if (d.candidates) return d.candidates[0].content.parts[0].text;
+      if (d.choices) return d.choices[0].message.content;
     } catch {}
   }
+}
 
-  // 3️⃣ OPENROUTER
-  if (process.env.OPENROUTER_KEYS) {
-    for (let key of process.env.OPENROUTER_KEYS.split(",")) {
-      try {
-        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${key}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "mistralai/mistral-7b-instruct",
-            messages: [{ role: "user", content: prompt }]
-          })
-        });
-        const d = await r.json();
-        if (d.choices) return d.choices[0].message.content;
-      } catch {}
-    }
-  }
+async function gemini(prompt) {
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_KEY}`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        contents:[{parts:[{text:prompt}]}]
+      })
+    });
+    const d = await r.json();
+    return d.candidates?.[0]?.content?.parts?.[0]?.text;
+  } catch {}
+}
+
+async function cohere(prompt) {
+  try {
+    const r = await fetch("https://api.cohere.ai/v1/chat", {
+      method:"POST",
+      headers:{
+        Authorization:`Bearer ${process.env.COHERE_KEY}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        model:"command-r",
+        message:prompt
+      })
+    });
+    const d = await r.json();
+    return d.text;
+  } catch {}
+}
+
+// =====================
+// 🎨 IMAGE (TOGETHER + REPLICATE)
+// =====================
+async function image(prompt) {
+  // Together
+  try {
+    const r = await fetch("https://api.together.xyz/v1/images/generations", {
+      method:"POST",
+      headers:{
+        Authorization:`Bearer ${process.env.TOGETHER_KEY}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        prompt,
+        model:"stabilityai/stable-diffusion-xl-base-1.0"
+      })
+    });
+    const d = await r.json();
+    if (d.data) return d.data[0].url;
+  } catch {}
+
+  // Replicate fallback
+  try {
+    const r = await fetch("https://api.replicate.com/v1/predictions", {
+      method:"POST",
+      headers:{
+        Authorization:`Token ${process.env.REPLICATE_KEY}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        version:"stability-ai/sdxl",
+        input:{prompt}
+      })
+    });
+    const d = await r.json();
+    return d.urls?.get;
+  } catch {}
+}
+
+// =====================
+// 🖼 IMAGE ANALYSIS
+// =====================
+async function analyze(path) {
+  const form = new FormData();
+  form.append("image", fs.createReadStream(path));
+
+  const r = await fetch("https://api.deepai.org/api/image-recognition", {
+    method:"POST",
+    headers:{ "api-key": process.env.DEEPAI_KEY },
+    body:form
+  });
+
+  const d = await r.json();
+  return JSON.stringify(d.output);
+}
+
+// =====================
+// 🧠 MAIN ROUTER
+// =====================
+async function AI(prompt) {
+
+  const g = await google(prompt);
+  const n = await news(prompt);
+
+  const full = context(prompt + "\n" + g + "\n" + n);
+
+  let r;
+
+  r = await groq(full);
+  if (r) return r;
+
+  r = await openrouter(full);
+  if (r) return r;
+
+  r = await gemini(full);
+  if (r) return r;
+
+  r = await cohere(full);
+  if (r) return r;
 
   return "❌ All AI failed";
 }
 
-// ===== IMAGE =====
-async function generateImage(prompt) {
-  try {
-    const r = await fetch("https://api.together.xyz/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.TOGETHER_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        prompt,
-        model: "stabilityai/stable-diffusion-xl-base-1.0"
-      })
-    });
-    const d = await r.json();
-    return d.data?.[0]?.url;
-  } catch {
-    return null;
-  }
-}
-
-// ===== UPLOAD =====
-async function analyzeImage(path) {
-  try {
-    const form = new FormData();
-    form.append("image", fs.createReadStream(path));
-
-    const r = await fetch("https://api.deepai.org/api/image-recognition", {
-      method: "POST",
-      headers: { "api-key": process.env.DEEPAI_KEY },
-      body: form
-    });
-
-    const d = await r.json();
-    return JSON.stringify(d.output);
-
-  } catch {
-    return "❌ Image failed";
-  }
-}
-
-// ===== ROUTE =====
+// =====================
+// ROUTES
+// =====================
 app.post("/chat", async (req, res) => {
-  const msg = req.body.message;
-  const intent = detectIntent(msg);
+  const msg = req.body.message.toLowerCase();
 
-  if (intent === "realtime") {
-    const g = await searchGoogle(msg);
-    if (g) {
-      const final = await chatAI("Answer with latest info:\n" + g);
-      return res.json({ reply: final });
-    }
-  }
-
-  if (intent === "image") {
-    const url = await generateImage(msg);
+  // image
+  if (msg.includes("image") || msg.includes("photo")) {
+    const url = await image(msg);
     return res.json({ image: url });
   }
 
-  const reply = await chatAI(msg);
+  const reply = await AI(msg);
+  addMemory(msg, reply);
+
   res.json({ reply });
 });
 
 app.post("/upload", upload.single("image"), async (req, res) => {
-  const result = await analyzeImage(req.file.path);
+  const result = await analyze(req.file.path);
   res.json({ result });
 });
 
-app.listen(PORT, () => console.log("🔥 Running"));
+app.listen(PORT, ()=>console.log("🔥 NEVER FAIL AI RUNNING"));

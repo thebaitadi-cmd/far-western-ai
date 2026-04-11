@@ -1,19 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Far Western AI</title>
+
+<style>
+body {
+  margin:0;
+  background:black;
+  color:white;
+  font-family:sans-serif;
+}
+
+h1 {
+  text-align:center;
+  background:linear-gradient(45deg,cyan,purple);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+.chat {
+  max-width:700px;
+  margin:auto;
+  padding-bottom:120px;
+}
+
+.msg {
+  padding:12px;
+  margin:10px;
+  border-radius:12px;
+}
+
+.user {
+  background:linear-gradient(45deg,blue,purple);
+  text-align:right;
+}
+
+.bot {
+  background:#111;
+  border:1px solid cyan;
+  box-shadow:0 0 10px cyan;
+}
+
+#bottom {
+  position:fixed;
+  bottom:0;
+  width:100%;
+  background:#000;
+  padding:10px;
+}
+
+input {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  width:60%;
+}
+
+button {
+  padding:10px;
+  background:linear-gradient(45deg,cyan,purple);
+  border:none;
+  border-radius:8px;
+  color:white;
+}
+
+.typing {
+  border-right:2px solid white;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  50% {border-color: transparent;}
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚀 Far Western AI</h1>
+
+<div id="chat" class="chat"></div>
+
+<div id="bottom">
+  <input id="input" placeholder="Type..." />
+  <button onclick="send()">Send</button>
+  <button onclick="startVoice()">🎤</button>
+
+  <br><br>
+
+  <input type="file" id="file">
+  <button onclick="upload()">Upload</button>
+</div>
+
 <script>
 
 const chat = document.getElementById("chat");
 
-// ✅ CLEAN TEXT (IMPORTANT)
+// =====================
+// CLEAN TEXT
+// =====================
 function cleanText(text) {
-  return text
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\.([A-Za-z])/g, ". $1")
-    .replace(/,/g, ", ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return text.replace(/\s+/g," ").trim();
 }
 
-// ✅ ADD MESSAGE
-function add(text, type) {
+// =====================
+// ADD MESSAGE
+// =====================
+function add(text,type) {
   const d = document.createElement("div");
   d.className = "msg " + type;
   d.innerText = cleanText(text);
@@ -21,8 +115,10 @@ function add(text, type) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-// ✅ TYPING EFFECT (FIXED)
-async function typeText(text) {
+// =====================
+// TYPING EFFECT
+// =====================
+function typeText(text) {
   text = cleanText(text);
 
   const d = document.createElement("div");
@@ -30,45 +126,53 @@ async function typeText(text) {
   chat.appendChild(d);
 
   let i = 0;
-
-  let interval = setInterval(() => {
+  const interval = setInterval(()=>{
     d.innerText += text[i];
     i++;
-
-    if (i >= text.length) {
+    if(i>=text.length){
       clearInterval(interval);
       d.classList.remove("typing");
     }
-  }, 15);
+  },15);
 }
 
-// ✅ VOICE OUTPUT (NATURAL)
+// =====================
+// VOICE OUTPUT (AUTO LANGUAGE)
+// =====================
 function speak(text) {
-  text = cleanText(text);
-
   const speech = new SpeechSynthesisUtterance(text);
 
-  speech.lang = "hi-IN";   // 🔥 Hindi natural
-  speech.rate = 0.9;       // slow clear
-  speech.pitch = 1;
-  speech.volume = 1;
+  // language detect
+  if (/[\u0900-\u097F]/.test(text)) {
+    speech.lang = "hi-IN";
+  } else if (/[\u0900-\u097F]/.test(text)) {
+    speech.lang = "ne-NP";
+  } else {
+    speech.lang = "en-US";
+  }
+
+  speech.rate = 0.9;
 
   const voices = speechSynthesis.getVoices();
-  speech.voice = voices.find(v => v.lang.includes("hi")) || voices[0];
+  speech.voice = voices.find(v => v.lang === speech.lang) || voices[0];
 
-  speechSynthesis.cancel(); // stop old
+  speechSynthesis.cancel();
   speechSynthesis.speak(speech);
 }
 
-// ✅ SEND
-async function send(voice=false) {
+// =====================
+// SEND MESSAGE
+// =====================
+async function send() {
+  const input = document.getElementById("input");
   let text = input.value;
-  if (!text) return;
+
+  if(!text) return;
 
   add(text,"user");
   input.value="";
 
-  const res = await fetch("/chat", {
+  const res = await fetch("/chat",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({message:text})
@@ -76,34 +180,38 @@ async function send(voice=false) {
 
   const data = await res.json();
 
-  if (data.image) {
+  if(data.image){
     chat.innerHTML += `<img src="${data.image}" width="300">`;
     return;
   }
 
   typeText(data.reply);
-
-  if (voice) speak(data.reply);
+  speak(data.reply);
 }
 
-// ✅ VOICE INPUT
-function startVoice() {
-  let rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  rec.lang="hi-IN";
+// =====================
+// VOICE INPUT
+// =====================
+function startVoice(){
+  const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
-  rec.onresult = (e)=>{
-    input.value = e.results[0][0].transcript;
-    send(true);
+  rec.lang = "en-US";
+
+  rec.onresult = e=>{
+    document.getElementById("input").value = e.results[0][0].transcript;
+    send();
   };
 
   rec.start();
 }
 
-// ✅ IMAGE UPLOAD
-async function upload() {
-  let f = document.getElementById("file").files[0];
-  let form = new FormData();
-  form.append("image",f);
+// =====================
+// IMAGE UPLOAD
+// =====================
+async function upload(){
+  const file = document.getElementById("file").files[0];
+  const form = new FormData();
+  form.append("image",file);
 
   const res = await fetch("/upload",{method:"POST",body:form});
   const data = await res.json();
@@ -112,3 +220,6 @@ async function upload() {
 }
 
 </script>
+
+</body>
+</html>
