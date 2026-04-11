@@ -22,7 +22,7 @@ h1 {
 .chat {
   max-width:700px;
   margin:auto;
-  padding-bottom:140px;
+  padding-bottom:120px;
 }
 
 .msg {
@@ -31,7 +31,7 @@ h1 {
   border-radius:12px;
   line-height:1.6;
   white-space:pre-wrap;
-  word-break:break-word;
+  word-wrap:break-word;
   max-width:85%;
 }
 
@@ -53,21 +53,13 @@ h1 {
   width:100%;
   background:#000;
   padding:10px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-.row {
-  display:flex;
-  gap:10px;
 }
 
 input {
-  flex:1;
   padding:10px;
   border:none;
   border-radius:8px;
+  width:60%;
 }
 
 button {
@@ -76,7 +68,6 @@ button {
   border:none;
   border-radius:8px;
   color:white;
-  cursor:pointer;
 }
 
 .typing {
@@ -86,12 +77,6 @@ button {
 
 @keyframes blink {
   50% {border-color: transparent;}
-}
-
-img {
-  max-width:90%;
-  border-radius:10px;
-  margin:10px;
 }
 </style>
 </head>
@@ -103,16 +88,14 @@ img {
 <div id="chat" class="chat"></div>
 
 <div id="bottom">
-  <div class="row">
-    <input id="input" placeholder="Type..." />
-    <button onclick="send()">Send</button>
-    <button onclick="startVoice()">🎤</button>
-  </div>
+  <input id="input" placeholder="Type..." />
+  <button onclick="send()">Send</button>
+  <button onclick="startVoice()">🎤</button>
 
-  <div class="row">
-    <input type="file" id="file">
-    <button onclick="upload()">Upload</button>
-  </div>
+  <br><br>
+
+  <input type="file" id="file">
+  <button onclick="upload()">Upload</button>
 </div>
 
 <script>
@@ -120,84 +103,75 @@ img {
 const chat = document.getElementById("chat");
 
 // =====================
-// CLEAN TEXT (SMART)
-// =====================
-function cleanText(text) {
-  return text
-    .replace(/\s+/g," ")
-    .replace(/([.,!?])/g, "$1 ")
-    .trim();
-}
-
-// =====================
 // ADD MESSAGE
 // =====================
 function add(text,type) {
   const d = document.createElement("div");
   d.className = "msg " + type;
-  d.innerText = cleanText(text);
-
+  d.innerText = text.trim();
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
 
 // =====================
-// TYPING EFFECT (SMOOTH)
+// TYPING EFFECT (BOX FIXED)
 // =====================
 function typeText(text) {
-  text = cleanText(text);
-
   const d = document.createElement("div");
-  d.className = "msg bot typing";
+  d.className = "msg bot";
   chat.appendChild(d);
 
   let i = 0;
 
-  const speed = text.length > 100 ? 5 : 15;
-
   const interval = setInterval(()=>{
-    d.innerText += text.charAt(i);
+    d.innerText += text[i];
     i++;
-
-    chat.scrollTop = chat.scrollHeight;
-
-    if(i >= text.length){
+    if(i>=text.length){
       clearInterval(interval);
-      d.classList.remove("typing");
     }
-  }, speed);
+  },15);
+
+  chat.scrollTop = chat.scrollHeight;
 }
 
 // =====================
-// 🔊 VOICE OUTPUT (AUTO LANGUAGE)
+// 🔊 VOICE FIX (NO MIX)
 // =====================
+let selectedVoice = null;
+
+function loadVoice() {
+  const voices = speechSynthesis.getVoices();
+
+  selectedVoice =
+    voices.find(v => v.name.includes("Google US English")) ||
+    voices.find(v => v.lang === "en-US") ||
+    voices[0];
+}
+
+speechSynthesis.onvoiceschanged = loadVoice;
+
 function speak(text) {
+  speechSynthesis.cancel(); // stop mixing
+
+  if (!selectedVoice) loadVoice();
+
   const speech = new SpeechSynthesisUtterance(text);
 
-  // 🔥 better detection
-  if (/[\u0900-\u097F]/.test(text)) {
-    speech.lang = "hi-IN"; // Hindi/Nepali
-  } else if (/[\u0980-\u09FF]/.test(text)) {
-    speech.lang = "bn-IN";
-  } else {
-    speech.lang = "en-US";
-  }
+  speech.voice = selectedVoice;
+  speech.lang = selectedVoice.lang;
 
-  speech.rate = 0.95;
+  speech.rate = 0.9;
+  speech.pitch = 0.85;
 
-  const voices = speechSynthesis.getVoices();
-  speech.voice = voices.find(v => v.lang === speech.lang) || voices[0];
-
-  speechSynthesis.cancel();
   speechSynthesis.speak(speech);
 }
 
 // =====================
-// SEND MESSAGE
+// SEND
 // =====================
 async function send() {
   const input = document.getElementById("input");
-  let text = input.value.trim();
+  let text = input.value;
 
   if(!text) return;
 
@@ -213,10 +187,7 @@ async function send() {
   const data = await res.json();
 
   if(data.image){
-    const img = document.createElement("img");
-    img.src = data.image;
-    chat.appendChild(img);
-    chat.scrollTop = chat.scrollHeight;
+    chat.innerHTML += `<img src="${data.image}" width="300">`;
     return;
   }
 
@@ -225,7 +196,7 @@ async function send() {
 }
 
 // =====================
-// 🎤 VOICE INPUT (AUTO FIX)
+// 🎤 VOICE INPUT FIX
 // =====================
 function startVoice(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -237,20 +208,12 @@ function startVoice(){
 
   const rec = new SpeechRecognition();
 
-  rec.continuous = false;
-  rec.interimResults = false;
-
-  // 🔥 AUTO LANGUAGE
   rec.lang = navigator.language || "en-US";
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
     document.getElementById("input").value = text;
     send();
-  };
-
-  rec.onerror = e=>{
-    console.log("Voice error:", e);
   };
 
   rec.start();
@@ -261,8 +224,6 @@ function startVoice(){
 // =====================
 async function upload(){
   const file = document.getElementById("file").files[0];
-  if(!file) return;
-
   const form = new FormData();
   form.append("image",file);
 

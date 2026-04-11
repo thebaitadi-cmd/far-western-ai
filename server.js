@@ -14,17 +14,17 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// 🧠 MEMORY (SMART LIMIT)
+// 🧠 MEMORY (SMART)
 // =====================
 let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 4) memory.shift(); // 🔥 reduce noise
+  if (memory.length > 5) memory.shift();
 }
 
-function context(prompt) {
-  return memory.map(m => `User:${m.u}\nAI:${m.b}`).join("\n") + "\nUser:" + prompt;
+function getContext() {
+  return memory.map(m => `User:${m.u}\nAI:${m.b}`).join("\n");
 }
 
 // =====================
@@ -34,7 +34,7 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// ✂️ CLEAN RESPONSE (STRICT)
+// ✂️ CLEAN RESPONSE
 // =====================
 function clean(text) {
   if (!text) return "";
@@ -45,14 +45,30 @@ function clean(text) {
     .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
     .replace(/AI:/gi, "")
     .trim()
-    .slice(0, 150); // 🔥 tighter = smarter replies
+    .slice(0, 160);
 }
 
 // =====================
-// 🤖 AI PROVIDERS (SMART)
+// 🌐 REALTIME (FIX OLD INFO)
 // =====================
+async function google(q) {
+  try {
+    const r = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": process.env.SERPER_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ q })
+    });
+    const d = await r.json();
+    return d.organic?.map(x => x.snippet).join("\n") || "";
+  } catch { return ""; }
+}
 
-// 🔥 GROQ (FAST + BEST)
+// =====================
+// 🤖 AI PROVIDERS
+// =====================
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -65,7 +81,7 @@ async function groq(prompt) {
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.5
+          temperature: 0.4
         })
       });
 
@@ -77,7 +93,6 @@ async function groq(prompt) {
   }
 }
 
-// 🔥 OPENROUTER (SMART FALLBACK)
 async function openrouter(prompt) {
   for (let key of split("OPENROUTER_KEYS")) {
     try {
@@ -90,7 +105,7 @@ async function openrouter(prompt) {
         body: JSON.stringify({
           model: "mistralai/mistral-7b-instruct",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.5
+          temperature: 0.4
         })
       });
 
@@ -102,7 +117,6 @@ async function openrouter(prompt) {
   }
 }
 
-// 🔥 GEMINI
 async function gemini(prompt) {
   try {
     const r = await fetch(
@@ -121,7 +135,6 @@ async function gemini(prompt) {
   } catch {}
 }
 
-// 🔥 COHERE (LAST)
 async function cohere(prompt) {
   try {
     const r = await fetch("https://api.cohere.ai/v1/chat", {
@@ -140,6 +153,60 @@ async function cohere(prompt) {
     const d = await r.json();
     return d.text;
   } catch {}
+}
+
+// =====================
+// 🧠 MAIN AI (SMART BRAIN)
+// =====================
+async function AI(prompt) {
+
+  const p = prompt.toLowerCase();
+
+  let mode = "chat";
+
+  if (p.includes("summarize") || p.includes("summary")) mode = "summary";
+  else if (p.includes("latest") || p.includes("today") || p.includes("news")) mode = "realtime";
+
+  // 🔥 SUMMARY FIX
+  if (mode === "summary") {
+    prompt = "Summarize this chat shortly:\n" + getContext();
+  }
+
+  // 🔥 REALTIME FIX
+  let extra = "";
+  if (mode === "realtime") {
+    const g = await google(prompt);
+    extra = g;
+  }
+
+  const systemRule = `
+You are a smart AI assistant.
+
+Rules:
+- Understand user intent first
+- Reply in SAME language
+- Keep answer SHORT (1-2 lines)
+- No guessing
+- If unsure say "I don't know"
+`;
+
+  const fullPrompt = systemRule + "\n" + prompt + "\n" + extra;
+
+  let r;
+
+  r = await groq(fullPrompt);
+  if (r) return clean(r);
+
+  r = await openrouter(fullPrompt);
+  if (r) return clean(r);
+
+  r = await gemini(fullPrompt);
+  if (r) return clean(r);
+
+  r = await cohere(fullPrompt);
+  if (r) return clean(r);
+
+  return "Try again";
 }
 
 // =====================
@@ -165,46 +232,6 @@ async function image(prompt) {
 }
 
 // =====================
-// 🧠 MAIN AI (ULTRA FIX)
-// =====================
-async function AI(prompt) {
-
-  const systemRule = `
-You are a smart assistant.
-
-Rules:
-- Reply in SAME language as user
-- Hinglish → Hinglish
-- Nepali → Nepali
-- English → English
-
-- Answer SHORT (max 1–2 lines)
-- Be direct & helpful
-- NO extra explanation
-- NO random बात
-`;
-
-  const fullPrompt = systemRule + "\n" + prompt;
-
-  let r;
-
-  // 🔥 BEST ORDER
-  r = await groq(fullPrompt);
-  if (r) return clean(r);
-
-  r = await openrouter(fullPrompt);
-  if (r) return clean(r);
-
-  r = await gemini(fullPrompt);
-  if (r) return clean(r);
-
-  r = await cohere(fullPrompt);
-  if (r) return clean(r);
-
-  return "Try again";
-}
-
-// =====================
 // ROUTES
 // =====================
 app.post("/chat", async (req, res) => {
@@ -212,7 +239,6 @@ app.post("/chat", async (req, res) => {
 
   if (!msg) return res.json({ reply: "Say something" });
 
-  // image detect
   if (msg.toLowerCase().includes("image")) {
     const url = await image(msg);
     return res.json({ image: url });
@@ -225,9 +251,4 @@ app.post("/chat", async (req, res) => {
   res.json({ reply });
 });
 
-app.post("/upload", upload.single("image"), async (req, res) => {
-  const result = await analyze(req.file.path);
-  res.json({ result });
-});
-
-app.listen(PORT, () => console.log("🔥 ULTRA AI RUNNING"));
+app.listen(PORT, () => console.log("🔥 FINAL SMART AI RUNNING"));
