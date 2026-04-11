@@ -69,7 +69,6 @@ button {
   border-radius:8px;
   color:white;
 }
-
 </style>
 </head>
 
@@ -100,7 +99,7 @@ const chat = document.getElementById("chat");
 function add(text,type) {
   const d = document.createElement("div");
   d.className = "msg " + type;
-  d.innerText = text.trim();
+  d.innerText = text;
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -111,4 +110,124 @@ function add(text,type) {
 function typeText(text) {
   const d = document.createElement("div");
   d.className = "msg bot";
-  chat
+  chat.appendChild(d);
+
+  let i = 0;
+
+  const interval = setInterval(()=>{
+    d.innerText += text[i];
+    i++;
+    if(i >= text.length){
+      clearInterval(interval);
+    }
+  },15);
+
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// =====================
+// 🔊 VOICE FIX (NO MIX)
+// =====================
+let selectedVoice;
+
+function loadVoices() {
+  const voices = speechSynthesis.getVoices();
+
+  // 🔥 single fixed voice (no mixing)
+  selectedVoice =
+    voices.find(v => v.lang === "en-US") ||
+    voices.find(v => v.lang === "hi-IN") ||
+    voices[0];
+}
+
+speechSynthesis.onvoiceschanged = loadVoices;
+
+function speak(text) {
+  speechSynthesis.cancel(); // stop old voice
+
+  if (!selectedVoice) loadVoices();
+
+  const speech = new SpeechSynthesisUtterance(text);
+
+  speech.voice = selectedVoice;
+  speech.lang = selectedVoice.lang;
+
+  speech.rate = 0.9;
+  speech.pitch = 1;
+
+  speechSynthesis.speak(speech);
+}
+
+// =====================
+// SEND MESSAGE
+// =====================
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value;
+
+  if(!text) return;
+
+  add(text,"user");
+  input.value = "";
+
+  try {
+    const res = await fetch("/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:text})
+    });
+
+    const data = await res.json();
+
+    typeText(data.reply);
+    speak(data.reply);
+
+  } catch {
+    add("Server error","bot");
+  }
+}
+
+// =====================
+// 🎤 VOICE INPUT
+// =====================
+function startVoice(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Voice not supported");
+    return;
+  }
+
+  const rec = new SpeechRecognition();
+
+  rec.lang = navigator.language || "en-US";
+
+  rec.onresult = e=>{
+    const text = e.results[0][0].transcript;
+    document.getElementById("input").value = text;
+    send();
+  };
+
+  rec.start();
+}
+
+// =====================
+// IMAGE UPLOAD
+// =====================
+async function upload(){
+  const file = document.getElementById("file").files[0];
+  if(!file) return;
+
+  const form = new FormData();
+  form.append("image",file);
+
+  const res = await fetch("/upload",{method:"POST",body:form});
+  const data = await res.json();
+
+  add(data.result,"bot");
+}
+
+</script>
+
+</body>
+</html>

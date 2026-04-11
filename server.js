@@ -10,13 +10,13 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// 🧠 MEMORY (SMART)
+// 🧠 MEMORY
 // =====================
 let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 8) memory.shift();
+  if (memory.length > 6) memory.shift(); // optimized
 }
 
 function getContext() {
@@ -41,7 +41,7 @@ function clean(text) {
     .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
     .replace(/AI:/gi, "")
     .trim()
-    .slice(0, 160);
+    .slice(0, 140);
 }
 
 // =====================
@@ -49,6 +49,8 @@ function clean(text) {
 // =====================
 async function google(q) {
   try {
+    if (!process.env.SERPER_KEY) return "";
+
     const r = await fetch("https://google.serper.dev/search", {
       method: "POST",
       headers: {
@@ -57,8 +59,9 @@ async function google(q) {
       },
       body: JSON.stringify({ q })
     });
+
     const d = await r.json();
-    return d.organic?.map(x => x.snippet).join("\n") || "";
+    return d?.organic?.map(x => x.snippet).join("\n") || "";
   } catch {
     return "";
   }
@@ -67,6 +70,8 @@ async function google(q) {
 // =====================
 // 🤖 AI PROVIDERS
 // =====================
+
+// 🔥 GROQ (PRIMARY)
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -78,12 +83,16 @@ async function groq(prompt) {
         },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.4
+          messages: [
+            { role: "system", content: "You are helpful AI." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.5
         })
       });
 
       const d = await r.json();
+
       if (d?.choices?.[0]?.message?.content) {
         return d.choices[0].message.content;
       }
@@ -91,6 +100,7 @@ async function groq(prompt) {
   }
 }
 
+// 🔥 OPENROUTER
 async function openrouter(prompt) {
   for (let key of split("OPENROUTER_KEYS")) {
     try {
@@ -103,11 +113,12 @@ async function openrouter(prompt) {
         body: JSON.stringify({
           model: "mistralai/mistral-7b-instruct",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.4
+          temperature: 0.5
         })
       });
 
       const d = await r.json();
+
       if (d?.choices?.[0]?.message?.content) {
         return d.choices[0].message.content;
       }
@@ -115,8 +126,11 @@ async function openrouter(prompt) {
   }
 }
 
+// 🔥 GEMINI
 async function gemini(prompt) {
   try {
+    if (!process.env.GEMINI_KEY) return;
+
     const r = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_KEY}`,
       {
@@ -129,12 +143,16 @@ async function gemini(prompt) {
     );
 
     const d = await r.json();
+
     return d?.candidates?.[0]?.content?.parts?.[0]?.text;
   } catch {}
 }
 
+// 🔥 COHERE
 async function cohere(prompt) {
   try {
+    if (!process.env.COHERE_KEY) return;
+
     const r = await fetch("https://api.cohere.ai/v1/chat", {
       method: "POST",
       headers: {
@@ -144,7 +162,7 @@ async function cohere(prompt) {
       body: JSON.stringify({
         model: "command-r",
         message: prompt,
-        temperature: 0.4
+        temperature: 0.5
       })
     });
 
@@ -154,32 +172,9 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🎨 IMAGE
-// =====================
-async function image(prompt) {
-  try {
-    const r = await fetch("https://api.together.xyz/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.TOGETHER_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        prompt,
-        model: "stabilityai/stable-diffusion-xl-base-1.0"
-      })
-    });
-
-    const d = await r.json();
-    if (d.data) return d.data[0].url;
-  } catch {}
-}
-
-// =====================
-// 🧠 MAIN AI (ULTRA SMART)
+// 🧠 MAIN AI
 // =====================
 async function AI(prompt) {
-
   const p = prompt.toLowerCase();
 
   let mode = "chat";
@@ -189,35 +184,26 @@ async function AI(prompt) {
 
   const ctx = getContext();
 
-  // 🔥 SUMMARY
+  // 🔥 SUMMARY FIX
   if (mode === "summary") {
-    prompt = `Summarize this conversation in 1-2 short lines:\n${ctx}`;
+    prompt = `Summarize in 1 line:\n${ctx}`;
   }
 
-  // 🔥 REALTIME
+  // 🔥 REALTIME FIX
   let extra = "";
   if (mode === "realtime") {
     const g = await google(prompt);
-    extra = "\nLatest info:\n" + g;
+    extra = g;
   }
 
-  const systemRule = `
-You are a smart AI assistant.
-
-Rules:
-- Understand user intent first
-- Reply only relevant answer
-- Reply in SAME language
-- Keep answer SHORT (1-2 lines)
-- Do NOT guess
-- If unsure say "I don't know"
-- Avoid outdated info
-`;
-
   const fullPrompt = `
-${systemRule}
+You are smart AI.
 
-Conversation:
+- Reply same language
+- Short answer (1 line)
+- Be accurate
+- No guessing
+
 ${ctx}
 
 User: ${prompt}
@@ -239,27 +225,29 @@ ${extra}
   r = await cohere(fullPrompt);
   if (r) return clean(r);
 
-  return "Try again";
+  return "Server busy, try again";
 }
 
 // =====================
 // ROUTES
 // =====================
 app.post("/chat", async (req, res) => {
-  const msg = req.body.message;
+  try {
+    const msg = req.body.message;
 
-  if (!msg) return res.json({ reply: "Say something" });
+    if (!msg) return res.json({ reply: "Say something" });
 
-  if (msg.toLowerCase().includes("image")) {
-    const url = await image(msg);
-    return res.json({ image: url });
+    const reply = await AI(msg);
+
+    addMemory(msg, reply);
+
+    res.json({ reply });
+
+  } catch (e) {
+    console.log("ERROR:", e);
+    res.json({ reply: "Error occurred" });
   }
-
-  const reply = await AI(msg);
-
-  addMemory(msg, reply);
-
-  res.json({ reply });
 });
 
-app.listen(PORT, () => console.log("🔥 ULTRA SMART AI RUNNING"));
+// =====================
+app.listen(PORT, () => console.log("🔥 AI RUNNING ON PORT " + PORT));
