@@ -2,56 +2,49 @@ import express from "express";
 import cors from "cors";
 
 const app = express();
-app.use(cors());
 app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
+app.use(cors());
+app.use(express.static("public"));
 
 // 🔑 10 API KEYS
 const API_KEYS = [
-  process.env.KEY1,
-  process.env.KEY2,
-  process.env.KEY3,
-  process.env.KEY4,
-  process.env.KEY5,
-  process.env.KEY6,
-  process.env.KEY7,
-  process.env.KEY8,
-  process.env.KEY9,
-  process.env.KEY10
-].filter(Boolean);
+  "key1",
+  "key2",
+  "key3",
+  "key4",
+  "key5",
+  "key6",
+  "key7",
+  "key8",
+  "key9",
+  "key10"
+];
 
-// 👉 Random key
-function getKey() {
-  return API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
-}
+let currentKey = 0;
 
-app.get("/", (req, res) => {
-  res.send("Far Western AI Server Running 🚀");
-});
-
+// 🚀 Chat API
 app.post("/chat", async (req, res) => {
+  const { message } = req.body;
+
   try {
-    const { message } = req.body;
+    const apiKey = API_KEYS[currentKey];
 
     const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" +
+        apiKey,
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${getKey()}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile", // ✅ latest working
-          messages: [
+          contents: [
             {
-              role: "system",
-              content: "Reply in same language (Hindi, English, Nepali)."
-            },
-            {
-              role: "user",
-              content: message
+              parts: [
+                {
+                  text: message
+                }
+              ]
             }
           ]
         })
@@ -60,20 +53,24 @@ app.post("/chat", async (req, res) => {
 
     const data = await response.json();
 
-    if (!data.choices) {
-      return res.json({ reply: "API Error: " + JSON.stringify(data) });
-    }
+    // 🔁 Key rotate
+    currentKey = (currentKey + 1) % API_KEYS.length;
 
-    res.json({
-      reply: data.choices[0].message.content
-    });
+    const reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "❌ AI error";
 
+    res.json({ reply });
   } catch (err) {
-    console.log(err);
-    res.json({ reply: "Server error" });
+    res.json({ reply: "❌ Server error" });
   }
 });
 
-app.listen(PORT, () => {
-  console.log("Server running 🚀");
+// 🚀 ROOT FIX (IMPORTANT)
+app.get("/", (req, res) => {
+  res.sendFile(process.cwd() + "/public/index.html");
 });
+
+// 🚀 START
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Server running 🚀"));
