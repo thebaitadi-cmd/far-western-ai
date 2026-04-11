@@ -3,6 +3,7 @@ const express = require("express");
 const fetch = require("node-fetch");
 const multer = require("multer");
 const FormData = require("form-data");
+const fs = require("fs");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -13,99 +14,49 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // ======================
-// 🔥 TEXT AI (10 API AUTO FALLBACK)
+// 🔥 TEXT AI (GROQ FIXED + FALLBACK)
 // ======================
 async function chatAI(prompt) {
 
-  // ===== 1. GROQ =====
-  if (process.env.GROQ_KEYS) {
-    const keys = process.env.GROQ_KEYS.split(",");
+  if (!process.env.GROQ_KEYS) {
+    return "❌ No GROQ keys found";
+  }
+
+  const keys = process.env.GROQ_KEYS.split(",");
+
+  // ✅ Working models (NEW)
+  const models = [
+    "llama-3.1-70b-versatile",
+    "llama-3.1-8b-instant"
+  ];
+
+  for (let model of models) {
     for (let key of keys) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${key}`,
+            "Authorization": `Bearer ${key.trim()}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama3-8b-8192",
+            model,
             messages: [{ role: "user", content: prompt }]
           })
         });
 
         const data = await res.json();
+
         if (data.choices && data.choices.length > 0) {
-  return data.choices[0].message.content;
-} else {
-  console.log("GROQ ERROR:", data);
-}
-      } catch {}
-    }
-  }
-
-  // ===== 2. OPENROUTER =====
-  if (process.env.OPENROUTER_KEYS) {
-    const keys = process.env.OPENROUTER_KEYS.split(",");
-    for (let key of keys) {
-      try {
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${key}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "mistralai/mistral-7b-instruct",
-            messages: [{ role: "user", content: prompt }]
-          })
-        });
-
-        const data = await res.json();
-        if (data.choices) return data.choices[0].message.content;
-      } catch {}
-    }
-  }
-
-  // ===== 3. GEMINI =====
-  if (process.env.GEMINI_KEY) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
+          return data.choices[0].message.content;
+        } else {
+          console.log("MODEL FAILED:", model, data);
         }
-      );
 
-      const data = await res.json();
-      if (data.candidates) {
-        return data.candidates[0].content.parts[0].text;
+      } catch (err) {
+        console.log("ERROR:", err.message);
       }
-    } catch {}
-  }
-
-  // ===== 4. COHERE =====
-  if (process.env.COHERE_KEY) {
-    try {
-      const res = await fetch("https://api.cohere.ai/v1/chat", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.COHERE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          message: prompt,
-          model: "command-r"
-        })
-      });
-
-      const data = await res.json();
-      if (data.text) return data.text;
-    } catch {}
+    }
   }
 
   return "❌ All AI APIs failed";
@@ -133,7 +84,8 @@ async function generateImage(prompt) {
     const data = await res.json();
     return data.data?.[0]?.url || null;
 
-  } catch {
+  } catch (err) {
+    console.log("IMAGE ERROR:", err.message);
     return null;
   }
 }
@@ -144,7 +96,7 @@ async function generateImage(prompt) {
 async function analyzeImage(filePath) {
   try {
     const form = new FormData();
-    form.append("image", require("fs").createReadStream(filePath));
+    form.append("image", fs.createReadStream(filePath));
 
     const res = await fetch("https://api.deepai.org/api/image-recognition", {
       method: "POST",
@@ -155,7 +107,8 @@ async function analyzeImage(filePath) {
     const data = await res.json();
     return JSON.stringify(data.output);
 
-  } catch {
+  } catch (err) {
+    console.log("ANALYSIS ERROR:", err.message);
     return "❌ Image analysis failed";
   }
 }
@@ -182,4 +135,6 @@ app.post("/upload", upload.single("image"), async (req, res) => {
   res.json({ result });
 });
 
-app.listen(PORT, () => console.log("🔥 Server running"));
+app.listen(PORT, () => {
+  console.log("🔥 Server running on port", PORT);
+});
