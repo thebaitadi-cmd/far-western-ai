@@ -1,127 +1,66 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Far Western AI</title>
-
-<style>
-body {
-  margin:0;
-  background:#000;
-  color:#fff;
-  font-family:sans-serif;
-}
-
-h1 {
-  text-align:center;
-  background:linear-gradient(45deg,cyan,purple);
-  -webkit-background-clip:text;
-  color:transparent;
-}
-
-.chat {
-  max-width:700px;
-  margin:auto;
-  padding-bottom:120px;
-}
-
-.msg {
-  padding:12px;
-  margin:10px;
-  border-radius:12px;
-}
-
-.user {
-  background:linear-gradient(45deg,blue,purple);
-  text-align:right;
-}
-
-.bot {
-  background:#111;
-  border:1px solid cyan;
-  box-shadow:0 0 10px cyan;
-}
-
-#bottom {
-  position:fixed;
-  bottom:0;
-  width:100%;
-  background:#000;
-  padding:10px;
-}
-
-input {
-  padding:10px;
-  border:none;
-  border-radius:8px;
-}
-
-button {
-  padding:10px;
-  background:linear-gradient(45deg,cyan,purple);
-  border:none;
-  border-radius:8px;
-  color:white;
-}
-
-.typing {
-  border-right:2px solid white;
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  50% {border-color: transparent;}
-}
-</style>
-</head>
-
-<body>
-
-<h1>🚀 Far Western AI</h1>
-
-<div id="chat" class="chat"></div>
-
-<div id="bottom">
-  <input id="input" placeholder="Type..." />
-  <button onclick="send()">Send</button>
-  <button onclick="startVoice()">🎤</button>
-
-  <br><br>
-
-  <input type="file" id="file">
-  <button onclick="upload()">Upload</button>
-</div>
-
 <script>
 
 const chat = document.getElementById("chat");
 
+// ✅ CLEAN TEXT (IMPORTANT)
+function cleanText(text) {
+  return text
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\.([A-Za-z])/g, ". $1")
+    .replace(/,/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ✅ ADD MESSAGE
 function add(text, type) {
   const d = document.createElement("div");
   d.className = "msg " + type;
-  d.innerText = text;
+  d.innerText = cleanText(text);
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
 
-// typing animation
+// ✅ TYPING EFFECT (FIXED)
 async function typeText(text) {
+  text = cleanText(text);
+
   const d = document.createElement("div");
   d.className = "msg bot typing";
   chat.appendChild(d);
 
   let i = 0;
+
   let interval = setInterval(() => {
     d.innerText += text[i];
     i++;
+
     if (i >= text.length) {
       clearInterval(interval);
       d.classList.remove("typing");
     }
-  }, 20);
+  }, 15);
 }
 
-// SEND
+// ✅ VOICE OUTPUT (NATURAL)
+function speak(text) {
+  text = cleanText(text);
+
+  const speech = new SpeechSynthesisUtterance(text);
+
+  speech.lang = "hi-IN";   // 🔥 Hindi natural
+  speech.rate = 0.9;       // slow clear
+  speech.pitch = 1;
+  speech.volume = 1;
+
+  const voices = speechSynthesis.getVoices();
+  speech.voice = voices.find(v => v.lang.includes("hi")) || voices[0];
+
+  speechSynthesis.cancel(); // stop old
+  speechSynthesis.speak(speech);
+}
+
+// ✅ SEND
 async function send(voice=false) {
   let text = input.value;
   if (!text) return;
@@ -147,10 +86,10 @@ async function send(voice=false) {
   if (voice) speak(data.reply);
 }
 
-// VOICE
+// ✅ VOICE INPUT
 function startVoice() {
   let rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  rec.lang="en-US";
+  rec.lang="hi-IN";
 
   rec.onresult = (e)=>{
     input.value = e.results[0][0].transcript;
@@ -160,13 +99,7 @@ function startVoice() {
   rec.start();
 }
 
-// SPEAK
-function speak(text) {
-  let s = new SpeechSynthesisUtterance(text);
-  speechSynthesis.speak(s);
-}
-
-// UPLOAD
+// ✅ IMAGE UPLOAD
 async function upload() {
   let f = document.getElementById("file").files[0];
   let form = new FormData();
@@ -179,6 +112,3 @@ async function upload() {
 }
 
 </script>
-
-</body>
-</html>
