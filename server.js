@@ -1,84 +1,100 @@
-import express from "express";
-import cors from "cors";
+require("dotenv").config();
+const express = require("express");
+const fetch = require("node-fetch");
+const path = require("path");
 
 const app = express();
 app.use(express.json());
-app.use(cors());
 app.use(express.static("public"));
 
-// 🔑 10 API KEYS
-const API_KEYS = [
-  "PASTE_KEY_1",
-  "PASTE_KEY_2",
-  "PASTE_KEY_3",
-  "PASTE_KEY_4",
-  "PASTE_KEY_5",
-  "PASTE_KEY_6",
-  "PASTE_KEY_7",
-  "PASTE_KEY_8",
-  "PASTE_KEY_9",
-  "PASTE_KEY_10"
-];
+const PORT = process.env.PORT || 3000;
 
-// 🚀 FUNCTION: TRY ALL KEYS (IMPORTANT FIX)
-async function askAI(message) {
-  for (let i = 0; i < API_KEYS.length; i++) {
-    const key = API_KEYS[i];
+// Convert keys string → array
+const groqKeys = process.env.GROQ_KEYS ? process.env.GROQ_KEYS.split(",") : [];
+const openrouterKeys = process.env.OPENROUTER_KEYS ? process.env.OPENROUTER_KEYS.split(",") : [];
 
+// 🔁 Try GROQ keys one by one
+async function tryGroq(prompt) {
+  for (let key of groqKeys) {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: message }]
-              }
-            ]
-          })
-        }
-      );
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama3-70b-8192",
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      const reply =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (reply) {
-        return reply; // ✅ SUCCESS
+      if (data.choices) {
+        return data.choices[0].message.content;
       }
 
     } catch (err) {
-      console.log("Key failed, trying next...");
+      console.log("Groq failed:", key);
     }
   }
-
-  return "❌ All API keys failed";
+  return null;
 }
 
-// 🚀 CHAT ROUTE
+// 🔁 Try OpenRouter keys
+async function tryOpenRouter(prompt) {
+  for (let key of openrouterKeys) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "mistralai/mixtral-8x7b-instruct",
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.choices) {
+        return data.choices[0].message.content;
+      }
+
+    } catch (err) {
+      console.log("OpenRouter failed:", key);
+    }
+  }
+  return null;
+}
+
+// 🔥 MAIN API
 app.post("/chat", async (req, res) => {
+  const { message } = req.body;
+
   try {
-    const { message } = req.body;
+    // 1️⃣ GROQ
+    let reply = await tryGroq(message);
+    if (reply) return res.json({ reply });
 
-    const reply = await askAI(message);
+    // 2️⃣ OPENROUTER
+    reply = await tryOpenRouter(message);
+    if (reply) return res.json({ reply });
 
-    res.json({ reply });
+    // ❌ All failed
+    return res.json({ reply: "❌ All API keys failed" });
 
   } catch (err) {
-    res.json({ reply: "❌ Server error" });
+    return res.json({ reply: "❌ Server error" });
   }
 });
 
-// 🚀 ROOT FIX (VERY IMPORTANT FOR RENDER)
+// Serve frontend
 app.get("/", (req, res) => {
-  res.sendFile(process.cwd() + "/public/index.html");
+  res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-// 🚀 START
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running 🚀"));
