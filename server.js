@@ -1,101 +1,141 @@
-require("dotenv").config();
-const express = require("express");
-const fetch = require("node-fetch");
-const cors = require("cors");
-const multer = require("multer");
+import express from "express";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
-app.use(express.static("public"));
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// STATIC FILES
+app.use(express.static(path.join(__dirname, "public")));
+
+// ROOT
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/index.html"));
+});
+
+// UPLOAD SETUP
 const upload = multer({ dest: "uploads/" });
 
-const PORT = process.env.PORT || 10000;
+// 🔑 MULTI API KEYS
+const keys = [
+  process.env.API_KEY_1,
+  process.env.API_KEY_2,
+  process.env.API_KEY_3,
+  process.env.API_KEY_4,
+  process.env.API_KEY_5,
+  process.env.API_KEY_6,
+  process.env.API_KEY_7,
+  process.env.API_KEY_8,
+  process.env.API_KEY_9,
+  process.env.API_KEY_10,
+];
 
-function getKeys(envKey) {
-  return process.env[envKey] ? process.env[envKey].split(",") : [];
+let keyIndex = 0;
+function getKey() {
+  const key = keys[keyIndex];
+  keyIndex = (keyIndex + 1) % keys.length;
+  return key;
 }
 
-// ================= CHAT =================
-app.post("/api/chat", async (req, res) => {
-  const userMsg = req.body.message;
+// 🧠 TEXT CHAT
+app.post("/chat", async (req, res) => {
+  const key = getKey();
+  const { message } = req.body;
 
-  const groqKeys = getKeys("GROQ_KEYS");
-
-  for (let key of groqKeys) {
-    try {
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,
+      {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${key}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama3-70b-8192",
-          messages: [{ role: "user", content: userMsg }]
-        })
-      });
-
-      const data = await r.json();
-      if (data.choices) {
-        return res.json({ reply: data.choices[0].message.content });
+          contents: [{ parts: [{ text: message }] }],
+        }),
       }
-    } catch (e) {}
-  }
+    );
 
-  return res.json({ reply: "⚠️ No AI response" });
+    const data = await response.json();
+    const reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No reply";
+
+    res.json({ reply });
+  } catch (err) {
+    res.json({ reply: "Error" });
+  }
 });
 
-// ================= IMAGE ANALYZE =================
-app.post("/api/image", upload.single("image"), async (req, res) => {
+// 🖼️ IMAGE READ
+app.post("/upload", upload.single("image"), async (req, res) => {
+  const key = getKey();
+  const filePath = req.file.path;
+
+  const base64 = fs.readFileSync(filePath, { encoding: "base64" });
+
   try {
-    const r = await fetch("https://api.deepai.org/api/densecap", {
-      method: "POST",
-      headers: {
-        "Api-Key": process.env.DEEPAI_KEY
-      },
-      body: new URLSearchParams({
-        image: req.file.path
-      })
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: "Explain this image" },
+                {
+                  inlineData: {
+                    mimeType: "image/jpeg",
+                    data: base64,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
-    const data = await r.json();
+    const data = await response.json();
+    const reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No result";
 
-    let text = data.output.captions
-      .slice(0, 3)
-      .map(x => x.caption)
-      .join(", ");
-
-    res.json({ reply: text });
-
-  } catch (e) {
-    res.json({ reply: "Image analyze error" });
+    res.json({ reply });
+  } catch {
+    res.json({ reply: "Error reading image" });
   }
 });
 
-// ================= IMAGE GENERATE =================
-app.post("/api/generate-image", async (req, res) => {
-  try {
-    const r = await fetch("https://api.deepai.org/api/text2img", {
-      method: "POST",
-      headers: {
-        "Api-Key": process.env.DEEPAI_KEY
-      },
-      body: new URLSearchParams({
-        text: req.body.prompt
-      })
-    });
+// 🎨 IMAGE GENERATE (simple placeholder)
+app.post("/generate-image", async (req, res) => {
+  const { prompt } = req.body;
 
-    const data = await r.json();
-
-    res.json({ image: data.output_url });
-
-  } catch (e) {
-    res.json({ error: "Image generation failed" });
-  }
+  res.json({
+    image: `https://dummyimage.com/512x512/000/fff&text=${encodeURIComponent(
+      prompt
+    )}`,
+  });
 });
 
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+// 🛠️ IMAGE EDIT
+app.post("/edit-image", upload.single("image"), async (req, res) => {
+  const { prompt } = req.body;
+
+  res.json({
+    image: `https://dummyimage.com/512x512/333/fff&text=Edited:${encodeURIComponent(
+      prompt
+    )}`,
+  });
 });
+
+// SERVER
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log("Server running on port " + PORT));

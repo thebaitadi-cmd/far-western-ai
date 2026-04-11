@@ -1,8 +1,36 @@
-<br><br>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Far Western AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-<button onclick="startVoice()">🎤 Voice</button>
+<h1>🔥 Far Western AI</h1>
 
-<input type="file" id="imageInput">
-<button onclick="uploadImage()">📸 Upload</button>
+<div class="chat-box">
+  <input id="msg" placeholder="Type message...">
+  <button onclick="send()">Send</button>
+  <button onclick="voice()">🎤 Voice</button>
+</div>
 
-<button onclick="generateImage()">🎨 Generate Image</button>
+<h2>Upload & Read Image</h2>
+<input type="file" id="img">
+<button onclick="upload()">Upload</button>
+
+<h2>Generate Image</h2>
+<input id="prompt" placeholder="Enter prompt">
+<button onclick="generate()">Generate</button>
+<img id="genImg">
+
+<h2>Edit Image</h2>
+<input type="file" id="editImg">
+<input id="editPrompt" placeholder="Edit prompt">
+<button onclick="edit()">Edit</button>
+<img id="editOut">
+
+<pre id="output"></pre>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,97 +1,80 @@
-const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-recognition.lang = "en-US";
+async function send() {
+  const msg = document.getElementById("msg").value;
 
-// ================= TEXT =================
-async function sendMessage() {
-  const input = document.getElementById("input");
-  const msg = input.value;
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: msg }),
+  });
 
-  if (!msg) return;
+  const data = await res.json();
+  document.getElementById("output").innerText = data.reply;
+}
 
-  addMessage("👤", msg);
+// 🎤 VOICE
+function voice() {
+  const rec = new webkitSpeechRecognition();
+  rec.start();
 
-  const res = await fetch("/api/chat", {
+  rec.onresult = async (e) => {
+    const text = e.results[0][0].transcript;
+
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+
+    const data = await res.json();
+
+    const speech = new SpeechSynthesisUtterance(data.reply);
+    speechSynthesis.speak(speech);
+  };
+}
+
+// 📷 IMAGE UPLOAD
+async function upload() {
+  const file = document.getElementById("img").files[0];
+  const form = new FormData();
+  form.append("image", file);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: form,
+  });
+
+  const data = await res.json();
+  document.getElementById("output").innerText = data.reply;
+}
+
+// 🎨 GENERATE IMAGE
+async function generate() {
+  const prompt = document.getElementById("prompt").value;
+
+  const res = await fetch("/generate-image", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ message: msg })
+    body: JSON.stringify({ prompt }),
   });
 
   const data = await res.json();
-
-  addMessage("🤖", data.reply);
-
-  input.value = "";
+  document.getElementById("genImg").src = data.image;
 }
 
-// ================= VOICE =================
-function startVoice() {
-  recognition.start();
-}
+// 🛠️ EDIT IMAGE
+async function edit() {
+  const file = document.getElementById("editImg").files[0];
+  const prompt = document.getElementById("editPrompt").value;
 
-recognition.onresult = async function (event) {
-  const voiceText = event.results[0][0].transcript;
+  const form = new FormData();
+  form.append("image", file);
+  form.append("prompt", prompt);
 
-  const res = await fetch("/api/chat", {
+  const res = await fetch("/edit-image", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ message: voiceText })
+    body: form,
   });
 
   const data = await res.json();
-
-  speak(data.reply);
-};
-
-function speak(text) {
-  const speech = new SpeechSynthesisUtterance(text);
-  speech.lang = "en-US";
-  speechSynthesis.speak(speech);
-}
-
-// ================= IMAGE UPLOAD =================
-async function uploadImage() {
-  const fileInput = document.getElementById("imageInput");
-
-  const formData = new FormData();
-  formData.append("image", fileInput.files[0]);
-
-  const res = await fetch("/api/image", {
-    method: "POST",
-    body: formData
-  });
-
-  const data = await res.json();
-
-  addMessage("🤖", data.reply);
-}
-
-// ================= IMAGE GENERATE =================
-async function generateImage() {
-  const prompt = document.getElementById("input").value;
-
-  const res = await fetch("/api/generate-image", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ prompt })
-  });
-
-  const data = await res.json();
-
-  const chat = document.getElementById("chat");
-
-  const img = document.createElement("img");
-  img.src = data.image;
-  img.style.width = "200px";
-
-  chat.appendChild(img);
-}
-
-// ================= UI =================
-function addMessage(sender, text) {
-  const chat = document.getElementById("chat");
-
-  const div = document.createElement("div");
-  div.innerHTML = `<b>${sender}</b>: ${text}`;
-
-  chat.appendChild(div);
+  document.getElementById("editOut").src = data.image;
 }
