@@ -1,66 +1,144 @@
 import express from "express";
-import fetch from "node-fetch";
+import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
+import FormData from "form-data";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
 const app = express();
-const upload = multer();
+const upload = multer({ storage: multer.memoryStorage() });
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
-const PORT = process.env.PORT || 10000;
+// path fix
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// ✅ TEXT CHAT
-app.post("/chat", async (req, res) => {
+// serve frontend
+app.use(express.static(path.join(__dirname, "public")));
+
+// 🔥 10 API KEYS
+const KEYS = [
+  process.env.GROQ_API_KEY_1,
+  process.env.GROQ_API_KEY_2,
+  process.env.GROQ_API_KEY_3,
+  process.env.GROQ_API_KEY_4,
+  process.env.GROQ_API_KEY_5,
+  process.env.GROQ_API_KEY_6,
+  process.env.GROQ_API_KEY_7,
+  process.env.GROQ_API_KEY_8,
+  process.env.GROQ_API_KEY_9,
+  process.env.GROQ_API_KEY_10
+];
+
+let index = 0;
+function getKey() {
+  const key = KEYS[index];
+  index = (index + 1) % KEYS.length;
+  return key;
+}
+
+// ✅ MAIN AI ROUTE
+app.post("/ai", upload.single("file"), async (req, res) => {
   try {
-    const { message } = req.body;
+    let message = req.body.message || "";
+    const file = req.file;
+    const key = getKey();
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama3-8b-8192",
-        messages: [{ role: "user", content: message }]
-      })
-    });
+    // 🎤 VOICE
+    if (file && file.mimetype.startsWith("audio")) {
+      const form = new FormData();
+      form.append("file", file.buffer, {
+        filename: "audio.webm"
+      });
+      form.append("model", "whisper-large-v3");
 
-    const data = await response.json();
+      const whisper = await fetch(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: {
+            ...form.getHeaders(),
+            Authorization: `Bearer ${key}`
+          },
+          body: form
+        }
+      );
+
+      const wData = await whisper.json();
+      message = wData.text;
+    }
+
+    // 🖼 IMAGE
+    if (file && file.mimetype.startsWith("image")) {
+      const base64 = file.buffer.toString("base64");
+
+      const vision = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.2-11b-vision-preview",
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: message || "Explain this image" },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/png;base64,${base64}`
+                  }
+                }
+              ]
+            }]
+          })
+        }
+      );
+
+      const vData = await vision.json();
+      return res.json({ reply: vData.choices[0].message.content });
+    }
+
+    // 💬 CHAT
+    const chat = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [{ role: "user", content: message }]
+        })
+      }
+    );
+
+    const cData = await chat.json();
 
     res.json({
-      reply: data.choices?.[0]?.message?.content || "No response"
+      reply: cData.choices[0].message.content,
+      userText: message
     });
 
   } catch (err) {
-    res.status(500).json({ error: "AI Error" });
+    console.log(err);
+    res.json({ reply: "⚠️ AI Error" });
   }
 });
 
-// ✅ IMAGE GENERATE (dummy free fallback)
-app.post("/generate-image", async (req, res) => {
-  const { prompt } = req.body;
-
-  // free demo image
-  res.json({
-    image: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
-  });
+// root
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ✅ IMAGE EDIT (ChatGPT style fake edit)
-app.post("/edit-image", upload.single("image"), async (req, res) => {
-  const prompt = req.body.prompt;
-
-  // demo edited image
-  res.json({
-    image: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + " edited version")}`
-  });
-});
-
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+app.listen(process.env.PORT || 3000);
