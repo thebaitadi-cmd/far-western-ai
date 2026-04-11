@@ -4,42 +4,34 @@
   <title>Far Western AI</title>
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
 <h1>🔥 Far Western AI</h1>
 
-<div class="chat-box">
-  <input id="msg" placeholder="Type message...">
-  <button onclick="send()">Send</button>
-  <button onclick="voice()">🎤 Voice</button>
+<!-- CHAT -->
+<div class="box">
+  <input id="userInput" placeholder="Type message">
+  <button onclick="sendMessage()">Send</button>
 </div>
 
-<div id="output"></div>
+<!-- GENERATE -->
+<div class="box">
+  <input id="imgPrompt" placeholder="Image prompt">
+  <button onclick="generateImage()">Generate</button>
+  <br><br>
+  <img id="imgResult" width="300">
+</div>
 
-<hr>
-
-<h2>Upload & Read Image</h2>
-<input type="file" id="img">
-<button onclick="upload()">Upload</button>
-
-<hr>
-
-<h2>Generate Image</h2>
-<input id="prompt" placeholder="Enter prompt">
-<button onclick="generate()">Generate</button>
-
-<img id="genImg" />
-
-<hr>
-
-<h2>Edit Image</h2>
-<input type="file" id="editImg">
-<input id="editPrompt" placeholder="Edit prompt">
-<button onclick="editImage()">Edit</button>
-
-<img id="editOut"/>
+<!-- EDIT -->
+<div class="box">
+  <input type="file" id="editFile">
+  <input id="editPrompt" placeholder="Edit prompt">
+  <button onclick="editImage()">Edit</button>
+  <br><br>
+  <img id="editResult" width="300">
+</div>
 
 <script src="script.js"></script>
+
 </body>
 </html>

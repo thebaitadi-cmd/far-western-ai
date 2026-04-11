@@ -1,82 +1,50 @@
-async function send() {
-  const msg = document.getElementById("msg").value;
+const API = "";
 
-  const res = await fetch("/chat", {
+// CHAT
+async function sendMessage() {
+  const input = document.getElementById("userInput");
+  const message = input.value;
+
+  const res = await fetch(API + "/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: msg }),
-  });
-
-  const data = await res.json();
-  document.getElementById("output").innerText = data.reply;
-}
-
-// 🎤 VOICE INPUT + VOICE OUTPUT
-function voice() {
-  const rec = new webkitSpeechRecognition();
-  rec.lang = "en-US";
-
-  rec.onresult = async (e) => {
-    const text = e.results[0][0].transcript;
-
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
-    });
-
-    const data = await res.json();
-
-    const speech = new SpeechSynthesisUtterance(data.reply);
-    speechSynthesis.speak(speech);
-  };
-
-  rec.start();
-}
-
-// 📤 IMAGE UPLOAD
-async function upload() {
-  const file = document.getElementById("img").files[0];
-  const form = new FormData();
-  form.append("image", file);
-
-  const res = await fetch("/upload", {
-    method: "POST",
-    body: form,
+    body: JSON.stringify({ message })
   });
 
   const data = await res.json();
   alert(data.reply);
 }
 
-// 🎨 IMAGE GENERATE
-async function generate() {
-  const prompt = document.getElementById("prompt").value;
+// IMAGE GENERATE
+async function generateImage() {
+  const prompt = document.getElementById("imgPrompt").value;
 
-  const res = await fetch("/generate-image", {
+  const res = await fetch(API + "/generate-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt })
   });
 
   const data = await res.json();
-  document.getElementById("genImg").src = data.image;
+
+  document.getElementById("imgResult").src = data.image;
 }
 
-// ✏️ IMAGE EDIT
+// IMAGE EDIT
 async function editImage() {
-  const file = document.getElementById("editImg").files[0];
+  const file = document.getElementById("editFile").files[0];
   const prompt = document.getElementById("editPrompt").value;
 
-  const form = new FormData();
-  form.append("image", file);
-  form.append("prompt", prompt);
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("prompt", prompt);
 
-  const res = await fetch("/edit-image", {
+  const res = await fetch(API + "/edit-image", {
     method: "POST",
-    body: form,
+    body: formData
   });
 
   const data = await res.json();
-  document.getElementById("editOut").src = data.image;
+
+  document.getElementById("editResult").src = data.image;
 }

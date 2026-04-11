@@ -1,28 +1,26 @@
 body {
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  background: linear-gradient(135deg, #0f2027, #203a43);
   color: white;
   text-align: center;
-  font-family: Arial;
+  font-family: sans-serif;
+}
+
+.box {
+  margin: 30px;
 }
 
 input {
   padding: 10px;
-  margin: 10px;
+  width: 250px;
   border-radius: 10px;
   border: none;
-  width: 250px;
 }
 
 button {
   padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
   background: #00c6ff;
+  border: none;
+  border-radius: 10px;
   color: white;
   cursor: pointer;
-}
-
-img {
-  margin-top: 20px;
-  width: 300px;
 }

@@ -2,84 +2,65 @@ import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import multer from "multer";
-import path from "path";
 
 dotenv.config();
+
 const app = express();
+const upload = multer();
+
 app.use(express.json());
 app.use(express.static("public"));
 
-const upload = multer({ dest: "uploads/" });
-
-// ✅ MULTI API KEY SYSTEM (10 KEYS)
-const keys = [
-  process.env.API_KEY_1,
-  process.env.API_KEY_2,
-  process.env.API_KEY_3,
-  process.env.API_KEY_4,
-  process.env.API_KEY_5,
-  process.env.API_KEY_6,
-  process.env.API_KEY_7,
-  process.env.API_KEY_8,
-  process.env.API_KEY_9,
-  process.env.API_KEY_10,
-];
-
-let keyIndex = 0;
-function getKey() {
-  const key = keys[keyIndex];
-  keyIndex = (keyIndex + 1) % keys.length;
-  return key;
-}
+const PORT = process.env.PORT || 10000;
 
 // ✅ TEXT CHAT
 app.post("/chat", async (req, res) => {
   try {
-    const key = getKey();
+    const { message } = req.body;
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama3-70b-8192",
-          messages: [{ role: "user", content: req.body.message }],
-        }),
-      }
-    );
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-8b-8192",
+        messages: [{ role: "user", content: message }]
+      })
+    });
 
     const data = await response.json();
-    res.json({ reply: data.choices[0].message.content });
-  } catch (e) {
-    res.json({ reply: "Error AI" });
+
+    res.json({
+      reply: data.choices?.[0]?.message?.content || "No response"
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: "AI Error" });
   }
 });
 
-// ✅ IMAGE READ
-app.post("/upload", upload.single("image"), async (req, res) => {
-  res.json({ reply: "Image received ✅ (AI read placeholder)" });
-});
-
-// ✅ IMAGE GENERATE (dummy free)
+// ✅ IMAGE GENERATE (dummy free fallback)
 app.post("/generate-image", async (req, res) => {
-  const prompt = req.body.prompt;
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-    prompt
-  )}`;
-  res.json({ image: url });
+  const { prompt } = req.body;
+
+  // free demo image
+  res.json({
+    image: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
+  });
 });
 
-// ✅ IMAGE EDIT
+// ✅ IMAGE EDIT (ChatGPT style fake edit)
 app.post("/edit-image", upload.single("image"), async (req, res) => {
   const prompt = req.body.prompt;
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-    prompt
-  )}`;
-  res.json({ image: url });
+
+  // demo edited image
+  res.json({
+    image: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + " edited version")}`
+  });
 });
 
-app.listen(10000, () => console.log("Server running on 10000"));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
