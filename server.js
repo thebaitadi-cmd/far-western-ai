@@ -20,7 +20,7 @@ let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 8) memory.shift();
+  if (memory.length > 6) memory.shift(); // limit
 }
 
 function context(prompt) {
@@ -34,7 +34,19 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// 🌐 GOOGLE (SERPER)
+// ✂️ CLEAN RESPONSE
+// =====================
+function clean(text) {
+  return text
+    .replace(/\n+/g, "\n")
+    .replace(/(1\.|2\.|3\.|4\.|5\.)/g, "")
+    .replace(/ +/g, " ")
+    .trim()
+    .slice(0, 350); // 🔥 short reply
+}
+
+// =====================
+// 🌐 GOOGLE (ONLY WHEN NEEDED)
 // =====================
 async function google(q) {
   try {
@@ -52,7 +64,7 @@ async function google(q) {
 }
 
 // =====================
-// 📰 NEWS (NEWSDATA)
+// 📰 NEWS (ONLY WHEN NEEDED)
 // =====================
 async function news(q) {
   try {
@@ -63,9 +75,8 @@ async function news(q) {
 }
 
 // =====================
-// 🤖 AI SYSTEM
+// 🤖 AI PROVIDERS
 // =====================
-
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     for (let model of ["llama-3.1-8b-instant","llama-3.1-70b-versatile"]) {
@@ -141,10 +152,9 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🎨 IMAGE (TOGETHER + REPLICATE)
+// 🎨 IMAGE GENERATE
 // =====================
 async function image(prompt) {
-  // Together
   try {
     const r = await fetch("https://api.together.xyz/v1/images/generations", {
       method:"POST",
@@ -161,7 +171,6 @@ async function image(prompt) {
     if (d.data) return d.data[0].url;
   } catch {}
 
-  // Replicate fallback
   try {
     const r = await fetch("https://api.replicate.com/v1/predictions", {
       method:"POST",
@@ -197,40 +206,51 @@ async function analyze(path) {
 }
 
 // =====================
-// 🧠 MAIN ROUTER
+// 🧠 MAIN AI ROUTER (FIXED)
 // =====================
 async function AI(prompt) {
 
-  const g = await google(prompt);
-  const n = await news(prompt);
+  let extra = "";
 
-  const full = context(prompt + "\n" + g + "\n" + n);
+  // 🔥 only for real-time queries
+  if (
+    prompt.includes("news") ||
+    prompt.includes("latest") ||
+    prompt.includes("recent") ||
+    prompt.includes("today")
+  ) {
+    const g = await google(prompt);
+    const n = await news(prompt);
+    extra = g + "\n" + n;
+  }
+
+  const full = context(prompt + "\n" + extra);
 
   let r;
 
   r = await groq(full);
-  if (r) return r;
+  if (r) return clean(r);
 
   r = await openrouter(full);
-  if (r) return r;
+  if (r) return clean(r);
 
   r = await gemini(full);
-  if (r) return r;
+  if (r) return clean(r);
 
   r = await cohere(full);
-  if (r) return r;
+  if (r) return clean(r);
 
-  return "❌ All AI failed";
+  return "❌ AI failed";
 }
 
 // =====================
 // ROUTES
 // =====================
 app.post("/chat", async (req, res) => {
-  const msg = req.body.message.toLowerCase();
+  const msg = req.body.message;
 
-  // image
-  if (msg.includes("image") || msg.includes("photo")) {
+  // image request detect
+  if (msg.toLowerCase().includes("image")) {
     const url = await image(msg);
     return res.json({ image: url });
   }
@@ -246,4 +266,4 @@ app.post("/upload", upload.single("image"), async (req, res) => {
   res.json({ result });
 });
 
-app.listen(PORT, ()=>console.log("🔥 NEVER FAIL AI RUNNING"));
+app.listen(PORT, ()=>console.log("🔥 AI FIXED & RUNNING"));
