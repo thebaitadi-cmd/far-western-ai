@@ -1,12 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
-const multer = require("multer");
-const FormData = require("form-data");
-const fs = require("fs");
 
 const app = express();
-const upload = multer({ dest: "uploads/" });
 
 app.use(express.json());
 app.use(express.static("public"));
@@ -20,7 +16,7 @@ let memory = [];
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 5) memory.shift();
+  if (memory.length > 8) memory.shift();
 }
 
 function getContext() {
@@ -49,7 +45,7 @@ function clean(text) {
 }
 
 // =====================
-// 🌐 REALTIME (FIX OLD INFO)
+// 🌐 REALTIME GOOGLE
 // =====================
 async function google(q) {
   try {
@@ -63,7 +59,9 @@ async function google(q) {
     });
     const d = await r.json();
     return d.organic?.map(x => x.snippet).join("\n") || "";
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 // =====================
@@ -156,60 +154,6 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🧠 MAIN AI (SMART BRAIN)
-// =====================
-async function AI(prompt) {
-
-  const p = prompt.toLowerCase();
-
-  let mode = "chat";
-
-  if (p.includes("summarize") || p.includes("summary")) mode = "summary";
-  else if (p.includes("latest") || p.includes("today") || p.includes("news")) mode = "realtime";
-
-  // 🔥 SUMMARY FIX
-  if (mode === "summary") {
-    prompt = "Summarize this chat shortly:\n" + getContext();
-  }
-
-  // 🔥 REALTIME FIX
-  let extra = "";
-  if (mode === "realtime") {
-    const g = await google(prompt);
-    extra = g;
-  }
-
-  const systemRule = `
-You are a smart AI assistant.
-
-Rules:
-- Understand user intent first
-- Reply in SAME language
-- Keep answer SHORT (1-2 lines)
-- No guessing
-- If unsure say "I don't know"
-`;
-
-  const fullPrompt = systemRule + "\n" + prompt + "\n" + extra;
-
-  let r;
-
-  r = await groq(fullPrompt);
-  if (r) return clean(r);
-
-  r = await openrouter(fullPrompt);
-  if (r) return clean(r);
-
-  r = await gemini(fullPrompt);
-  if (r) return clean(r);
-
-  r = await cohere(fullPrompt);
-  if (r) return clean(r);
-
-  return "Try again";
-}
-
-// =====================
 // 🎨 IMAGE
 // =====================
 async function image(prompt) {
@@ -232,6 +176,73 @@ async function image(prompt) {
 }
 
 // =====================
+// 🧠 MAIN AI (ULTRA SMART)
+// =====================
+async function AI(prompt) {
+
+  const p = prompt.toLowerCase();
+
+  let mode = "chat";
+
+  if (p.includes("summarize") || p.includes("summary")) mode = "summary";
+  else if (p.includes("latest") || p.includes("today") || p.includes("news")) mode = "realtime";
+
+  const ctx = getContext();
+
+  // 🔥 SUMMARY
+  if (mode === "summary") {
+    prompt = `Summarize this conversation in 1-2 short lines:\n${ctx}`;
+  }
+
+  // 🔥 REALTIME
+  let extra = "";
+  if (mode === "realtime") {
+    const g = await google(prompt);
+    extra = "\nLatest info:\n" + g;
+  }
+
+  const systemRule = `
+You are a smart AI assistant.
+
+Rules:
+- Understand user intent first
+- Reply only relevant answer
+- Reply in SAME language
+- Keep answer SHORT (1-2 lines)
+- Do NOT guess
+- If unsure say "I don't know"
+- Avoid outdated info
+`;
+
+  const fullPrompt = `
+${systemRule}
+
+Conversation:
+${ctx}
+
+User: ${prompt}
+
+${extra}
+`;
+
+  let r;
+
+  r = await groq(fullPrompt);
+  if (r) return clean(r);
+
+  r = await openrouter(fullPrompt);
+  if (r) return clean(r);
+
+  r = await gemini(fullPrompt);
+  if (r) return clean(r);
+
+  r = await cohere(fullPrompt);
+  if (r) return clean(r);
+
+  return "Try again";
+}
+
+// =====================
 // ROUTES
 // =====================
 app.post("/chat", async (req, res) => {
@@ -251,4 +262,4 @@ app.post("/chat", async (req, res) => {
   res.json({ reply });
 });
 
-app.listen(PORT, () => console.log("🔥 FINAL SMART AI RUNNING"));
+app.listen(PORT, () => console.log("🔥 ULTRA SMART AI RUNNING"));
