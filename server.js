@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
+const edgeTTS = require("edge-tts");
 
 const app = express();
 app.use(express.json());
@@ -29,26 +30,10 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// 🔥 GREETING DETECTOR
-// =====================
-function isGreeting(text) {
-  const t = text.toLowerCase().trim();
-
-  return (
-    t === "hi" ||
-    t === "hello" ||
-    t === "hey" ||
-    t.includes("kaise ho") ||
-    t.includes("namaste")
-  );
-}
-
-// =====================
 // ✂️ CLEAN (NO CUT)
 // =====================
 function clean(text) {
   if (!text) return "";
-
   return text
     .replace(/\n+/g, " ")
     .replace(/[ ]+/g, " ")
@@ -150,109 +135,28 @@ async function gemini(prompt) {
   } catch {}
 }
 
-async function cohere(prompt) {
-  try {
-    if (!process.env.COHERE_KEY) return;
-
-    const r = await fetch("https://api.cohere.ai/v1/chat", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.COHERE_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "command-r",
-        message: prompt
-      })
-    });
-
-    const d = await r.json();
-    return d.text;
-  } catch {}
-}
-
 // =====================
-// 🧠 INTENT DETECTOR
-// =====================
-async function detectIntent(prompt) {
-  const res = await groq(`
-Classify intent into ONE word:
-- greeting
-- realtime
-- summary
-- question
-- normal
-
-User: "${prompt}"
-
-Answer only one word.
-`);
-
-  return res?.toLowerCase().trim();
-}
-
-// =====================
-// 🧠 PARALLEL THINKING
-// =====================
-async function parallel(prompt) {
-  const results = await Promise.all([
-    groq(prompt),
-    openrouter(prompt),
-    gemini(prompt),
-    cohere(prompt)
-  ]);
-
-  return results.filter(Boolean);
-}
-
-// =====================
-// 🧠 BEST ANSWER SELECTOR
-// =====================
-function pickBest(arr) {
-  if (!arr.length) return null;
-
-  return arr.sort((a, b) => {
-    let scoreA = a.length + (a.includes("I don't know") ? -50 : 0);
-    let scoreB = b.length + (b.includes("I don't know") ? -50 : 0);
-    return scoreB - scoreA;
-  })[0];
-}
-
-// =====================
-// 🧠 MASTER AI
+// 🧠 MASTER AI (SMART)
 // =====================
 async function AI(prompt) {
 
-  // 🔥 GREETING FIX
-  if (isGreeting(prompt)) {
-    return "Hello! How can I help you?";
-  }
-
-  const intent = await detectIntent(prompt);
   const ctx = getContext();
 
+  // 🔥 realtime auto detect
   let extra = "";
-
-  // 🔥 REALTIME DATA
-  const g = await google(prompt);
-  if (g) {
-    extra = "\nREAL DATA:\n" + g;
-  }
-
-  // 🔥 SAFE SUMMARY
-  if (intent === "summary" && memory.length > 2) {
-    prompt = `Summarize in 1 line:\n${ctx}`;
+  if (prompt.toLowerCase().includes("today") || prompt.toLowerCase().includes("latest")) {
+    extra = await google(prompt);
   }
 
   const finalPrompt = `
-You are an ADVANCED AI.
+You are a HIGH LEVEL AI.
 
-RULES:
-- NEVER GUESS
-- If unsure → say "I don't know"
-- Use real data if available
+Rules:
 - Same language
-- Natural human tone
+- Human tone
+- Accurate answer
+- No guessing
+- Clear explanation if needed
 
 Conversation:
 ${ctx}
@@ -262,14 +166,55 @@ User: ${prompt}
 ${extra}
 `;
 
-  const responses = await parallel(finalPrompt);
-  let best = pickBest(responses);
+  // 🔥 parallel thinking
+  const results = await Promise.all([
+    groq(finalPrompt),
+    openrouter(finalPrompt),
+    gemini(finalPrompt)
+  ]);
+
+  // 🔥 best answer selection
+  const best = results
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)[0];
 
   return clean(best || "I don't know");
 }
 
 // =====================
-// 🚀 ROUTE
+// 🔊 EDGE TTS (FIXED)
+// =====================
+function detectVoice(text) {
+  if (/[\u0900-\u097F]/.test(text)) {
+    return "hi-IN-SwaraNeural"; // Hindi/Nepali
+  }
+  return "en-US-AriaNeural";
+}
+
+app.post("/tts", async (req, res) => {
+  try {
+    const text = req.body.text;
+
+    if (!text) return res.status(400).send("No text");
+
+    const voice = detectVoice(text);
+
+    const stream = await edgeTTS({
+      text,
+      voice
+    });
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    stream.pipe(res);
+
+  } catch (e) {
+    console.log(e);
+    res.status(500).send("TTS error");
+  }
+});
+
+// =====================
+// 🚀 CHAT ROUTE
 // =====================
 app.post("/chat", async (req, res) => {
   try {
@@ -289,4 +234,5 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log("🔥 MASTER AI FINAL RUNNING ON " + PORT));
+// =====================
+app.listen(PORT, () => console.log("🔥 MASTER AI + EDGE VOICE RUNNING " + PORT));
