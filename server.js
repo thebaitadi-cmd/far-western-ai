@@ -3,29 +3,15 @@ import fetch from "node-fetch";
 import dotenv from "dotenv";
 import multer from "multer";
 import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
 
 dotenv.config();
-
 const app = express();
 app.use(express.json());
+app.use(express.static("public"));
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// STATIC FILES
-app.use(express.static(path.join(__dirname, "public")));
-
-// ROOT
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public/index.html"));
-});
-
-// UPLOAD SETUP
 const upload = multer({ dest: "uploads/" });
 
-// 🔑 MULTI API KEYS
+// ✅ MULTI API KEY SYSTEM (10 KEYS)
 const keys = [
   process.env.API_KEY_1,
   process.env.API_KEY_2,
@@ -46,96 +32,54 @@ function getKey() {
   return key;
 }
 
-// 🧠 TEXT CHAT
+// ✅ TEXT CHAT
 app.post("/chat", async (req, res) => {
-  const key = getKey();
-  const { message } = req.body;
-
   try {
+    const key = getKey();
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,
+      "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: message }] }],
+          model: "llama3-70b-8192",
+          messages: [{ role: "user", content: req.body.message }],
         }),
       }
     );
 
     const data = await response.json();
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No reply";
-
-    res.json({ reply });
-  } catch (err) {
-    res.json({ reply: "Error" });
+    res.json({ reply: data.choices[0].message.content });
+  } catch (e) {
+    res.json({ reply: "Error AI" });
   }
 });
 
-// 🖼️ IMAGE READ
+// ✅ IMAGE READ
 app.post("/upload", upload.single("image"), async (req, res) => {
-  const key = getKey();
-  const filePath = req.file.path;
-
-  const base64 = fs.readFileSync(filePath, { encoding: "base64" });
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: "Explain this image" },
-                {
-                  inlineData: {
-                    mimeType: "image/jpeg",
-                    data: base64,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No result";
-
-    res.json({ reply });
-  } catch {
-    res.json({ reply: "Error reading image" });
-  }
+  res.json({ reply: "Image received ✅ (AI read placeholder)" });
 });
 
-// 🎨 IMAGE GENERATE (simple placeholder)
+// ✅ IMAGE GENERATE (dummy free)
 app.post("/generate-image", async (req, res) => {
-  const { prompt } = req.body;
-
-  res.json({
-    image: `https://dummyimage.com/512x512/000/fff&text=${encodeURIComponent(
-      prompt
-    )}`,
-  });
+  const prompt = req.body.prompt;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+    prompt
+  )}`;
+  res.json({ image: url });
 });
 
-// 🛠️ IMAGE EDIT
+// ✅ IMAGE EDIT
 app.post("/edit-image", upload.single("image"), async (req, res) => {
-  const { prompt } = req.body;
-
-  res.json({
-    image: `https://dummyimage.com/512x512/333/fff&text=Edited:${encodeURIComponent(
-      prompt
-    )}`,
-  });
+  const prompt = req.body.prompt;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+    prompt
+  )}`;
+  res.json({ image: url });
 });
 
-// SERVER
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(10000, () => console.log("Server running on 10000"));

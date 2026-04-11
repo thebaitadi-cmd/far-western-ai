@@ -11,10 +11,10 @@ async function send() {
   document.getElementById("output").innerText = data.reply;
 }
 
-// 🎤 VOICE
+// 🎤 VOICE INPUT + VOICE OUTPUT
 function voice() {
   const rec = new webkitSpeechRecognition();
-  rec.start();
+  rec.lang = "en-US";
 
   rec.onresult = async (e) => {
     const text = e.results[0][0].transcript;
@@ -30,9 +30,11 @@ function voice() {
     const speech = new SpeechSynthesisUtterance(data.reply);
     speechSynthesis.speak(speech);
   };
+
+  rec.start();
 }
 
-// 📷 IMAGE UPLOAD
+// 📤 IMAGE UPLOAD
 async function upload() {
   const file = document.getElementById("img").files[0];
   const form = new FormData();
@@ -44,16 +46,16 @@ async function upload() {
   });
 
   const data = await res.json();
-  document.getElementById("output").innerText = data.reply;
+  alert(data.reply);
 }
 
-// 🎨 GENERATE IMAGE
+// 🎨 IMAGE GENERATE
 async function generate() {
   const prompt = document.getElementById("prompt").value;
 
   const res = await fetch("/generate-image", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),
   });
 
@@ -61,8 +63,8 @@ async function generate() {
   document.getElementById("genImg").src = data.image;
 }
 
-// 🛠️ EDIT IMAGE
-async function edit() {
+// ✏️ IMAGE EDIT
+async function editImage() {
   const file = document.getElementById("editImg").files[0];
   const prompt = document.getElementById("editPrompt").value;
 

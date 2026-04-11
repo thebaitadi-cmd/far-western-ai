@@ -4,6 +4,7 @@
   <title>Far Western AI</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
 <h1>🔥 Far Western AI</h1>
@@ -14,22 +15,30 @@
   <button onclick="voice()">🎤 Voice</button>
 </div>
 
+<div id="output"></div>
+
+<hr>
+
 <h2>Upload & Read Image</h2>
 <input type="file" id="img">
 <button onclick="upload()">Upload</button>
 
+<hr>
+
 <h2>Generate Image</h2>
 <input id="prompt" placeholder="Enter prompt">
 <button onclick="generate()">Generate</button>
-<img id="genImg">
+
+<img id="genImg" />
+
+<hr>
 
 <h2>Edit Image</h2>
 <input type="file" id="editImg">
 <input id="editPrompt" placeholder="Edit prompt">
-<button onclick="edit()">Edit</button>
-<img id="editOut">
+<button onclick="editImage()">Edit</button>
 
-<pre id="output"></pre>
+<img id="editOut"/>
 
 <script src="script.js"></script>
 </body>
