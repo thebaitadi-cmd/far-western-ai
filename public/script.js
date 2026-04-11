@@ -1,29 +1,31 @@
-async function send() {
-  let input = document.getElementById("input").value;
+async function sendMessage() {
+  const input = document.getElementById("input");
+  const msg = input.value;
 
-  document.getElementById("chat").innerHTML += `<p>👤 ${input}</p>`;
+  if (!msg) return;
 
-  let res = await fetch("/chat", {
+  addMessage("👤", msg);
+
+  const res = await fetch("/api/chat", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ message: input })
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ message: msg })
   });
 
-  let data = await res.json();
+  const data = await res.json();
 
-  document.getElementById("chat").innerHTML += `<p>🤖 ${data.reply}</p>`;
+  addMessage("🤖", data.reply);
+
+  input.value = "";
 }
 
-async function img() {
-  let input = document.getElementById("input").value;
+function addMessage(sender, text) {
+  const chat = document.getElementById("chat");
 
-  let res = await fetch("/image", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ prompt: input })
-  });
+  const div = document.createElement("div");
+  div.innerHTML = `<b>${sender}</b>: ${text}`;
 
-  let data = await res.json();
-
-  document.getElementById("chat").innerHTML += `<img src="${data.image}" width="300"/>`;
+  chat.appendChild(div);
 }
