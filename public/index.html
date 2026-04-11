@@ -1,63 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Far Western AI</title>
-  <style>
-    body {
-      background: black;
-      color: white;
-      font-family: sans-serif;
-    }
-    .chat {
-      max-width: 600px;
-      margin: auto;
-      padding: 20px;
-    }
-    .msg {
-      margin: 10px;
-      padding: 10px;
-      border-radius: 10px;
-    }
-    .user { background: blue; }
-    .bot { background: #222; }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Far Western AI</title>
+
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+  background:#000;
+  color:#fff;
+}
+
+.chat {
+  max-width:700px;
+  margin:auto;
+  padding:20px;
+}
+
+.msg {
+  padding:12px;
+  margin:10px 0;
+  border-radius:10px;
+}
+
+.user { background:#2563eb; text-align:right; }
+.bot { background:#111; }
+
+input {
+  width:70%;
+  padding:12px;
+}
+
+button {
+  padding:12px;
+  cursor:pointer;
+}
+</style>
 </head>
+
 <body>
 
 <div class="chat" id="chat"></div>
 
-<input id="input" placeholder="Type..." />
-<button onclick="send()">Send</button>
+<div style="position:fixed;bottom:0;width:100%;background:#000;padding:10px;text-align:center;">
+  <input id="input" placeholder="Ask anything...">
+  <button onclick="send()">Send</button>
+</div>
 
-<script>
-async function send() {
-  const input = document.getElementById("input");
-  const msg = input.value;
-
-  if (!msg) return;
-
-  addMessage(msg, "user");
-  input.value = "";
-
-  const res = await fetch("/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: msg })
-  });
-
-  const data = await res.json();
-
-  addMessage(data.reply, "bot");
-}
-
-function addMessage(text, type) {
-  const chat = document.getElementById("chat");
-  const div = document.createElement("div");
-  div.className = "msg " + type;
-  div.innerText = text;
-  chat.appendChild(div);
-}
-</script>
+<script src="app.js"></script>
 
 </body>
 </html>

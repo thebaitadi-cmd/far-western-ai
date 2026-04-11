@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// 🔥 10 KEYS (STRICT)
+// 🔥 10 KEYS
 const KEYS = [
   process.env.GROQ_API_KEY_1,
   process.env.GROQ_API_KEY_2,
@@ -33,20 +33,18 @@ function getKey() {
   return key;
 }
 
-// 🚀 MAIN ROUTE
+// 🚀 MAIN AI ROUTE
 app.post("/ai", upload.single("file"), async (req, res) => {
   try {
     let message = req.body.message || "";
     const file = req.file;
     const key = getKey();
 
-    // 🎤 VOICE → Hindi/English/Nepali fix
+    // 🎤 VOICE
     if (file && file.mimetype.startsWith("audio")) {
       const form = new FormData();
       form.append("file", file.buffer, "audio.webm");
       form.append("model", "whisper-large-v3");
-      form.append("temperature", "0");
-      form.append("response_format", "json");
 
       const response = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -60,12 +58,10 @@ app.post("/ai", upload.single("file"), async (req, res) => {
       );
 
       const data = await response.json();
-
-      // 🔥 IMPORTANT FIX (language accuracy)
       message = data.text || "";
     }
 
-    // 💬 CHAT (NO RANDOM LANGUAGE)
+    // 💬 CHAT
     const chat = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -81,7 +77,7 @@ app.post("/ai", upload.single("file"), async (req, res) => {
             {
               role: "system",
               content:
-                "Reply strictly in the SAME language as the user input. Do not change language."
+                "Reply in SAME language as user. Hindi->Hindi, Nepali->Nepali, English->English."
             },
             {
               role: "user",
@@ -104,7 +100,7 @@ app.post("/ai", upload.single("file"), async (req, res) => {
   }
 });
 
-// ROOT FIX (Render ke liye)
+// ROOT FIX
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
