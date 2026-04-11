@@ -22,24 +22,23 @@ h1 {
 .chat {
   max-width:700px;
   margin:auto;
-  padding-bottom:120px;
+  padding-bottom:140px;
 }
 
 .msg {
   padding:12px;
   margin:10px;
   border-radius:12px;
-  line-height:1.6;              /* ✅ spacing fix */
-  white-space:pre-wrap;         /* ✅ line break fix */
-  word-wrap:break-word;         /* ✅ overflow fix */
-  overflow-wrap:break-word;
-  max-width:90%;
+  line-height:1.6;
+  white-space:pre-wrap;
+  word-break:break-word;
+  max-width:85%;
 }
 
 .user {
   background:linear-gradient(45deg,blue,purple);
-  text-align:right;
   margin-left:auto;
+  text-align:right;
 }
 
 .bot {
@@ -54,13 +53,21 @@ h1 {
   width:100%;
   background:#000;
   padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.row {
+  display:flex;
+  gap:10px;
 }
 
 input {
+  flex:1;
   padding:10px;
   border:none;
   border-radius:8px;
-  width:60%;
 }
 
 button {
@@ -69,6 +76,7 @@ button {
   border:none;
   border-radius:8px;
   color:white;
+  cursor:pointer;
 }
 
 .typing {
@@ -78,6 +86,12 @@ button {
 
 @keyframes blink {
   50% {border-color: transparent;}
+}
+
+img {
+  max-width:90%;
+  border-radius:10px;
+  margin:10px;
 }
 </style>
 </head>
@@ -89,14 +103,16 @@ button {
 <div id="chat" class="chat"></div>
 
 <div id="bottom">
-  <input id="input" placeholder="Type..." />
-  <button onclick="send()">Send</button>
-  <button onclick="startVoice()">🎤</button>
+  <div class="row">
+    <input id="input" placeholder="Type..." />
+    <button onclick="send()">Send</button>
+    <button onclick="startVoice()">🎤</button>
+  </div>
 
-  <br><br>
-
-  <input type="file" id="file">
-  <button onclick="upload()">Upload</button>
+  <div class="row">
+    <input type="file" id="file">
+    <button onclick="upload()">Upload</button>
+  </div>
 </div>
 
 <script>
@@ -104,10 +120,13 @@ button {
 const chat = document.getElementById("chat");
 
 // =====================
-// CLEAN TEXT
+// CLEAN TEXT (SMART)
 // =====================
 function cleanText(text) {
-  return text.replace(/\s+/g," ").trim();
+  return text
+    .replace(/\s+/g," ")
+    .replace(/([.,!?])/g, "$1 ")
+    .trim();
 }
 
 // =====================
@@ -117,12 +136,13 @@ function add(text,type) {
   const d = document.createElement("div");
   d.className = "msg " + type;
   d.innerText = cleanText(text);
+
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
 
 // =====================
-// TYPING EFFECT
+// TYPING EFFECT (SMOOTH)
 // =====================
 function typeText(text) {
   text = cleanText(text);
@@ -132,29 +152,38 @@ function typeText(text) {
   chat.appendChild(d);
 
   let i = 0;
+
+  const speed = text.length > 100 ? 5 : 15;
+
   const interval = setInterval(()=>{
-    d.innerText += text[i];
+    d.innerText += text.charAt(i);
     i++;
-    if(i>=text.length){
+
+    chat.scrollTop = chat.scrollHeight;
+
+    if(i >= text.length){
       clearInterval(interval);
       d.classList.remove("typing");
     }
-  },15);
+  }, speed);
 }
 
 // =====================
-// 🔊 VOICE OUTPUT
+// 🔊 VOICE OUTPUT (AUTO LANGUAGE)
 // =====================
 function speak(text) {
   const speech = new SpeechSynthesisUtterance(text);
 
+  // 🔥 better detection
   if (/[\u0900-\u097F]/.test(text)) {
-    speech.lang = "hi-IN";
+    speech.lang = "hi-IN"; // Hindi/Nepali
+  } else if (/[\u0980-\u09FF]/.test(text)) {
+    speech.lang = "bn-IN";
   } else {
     speech.lang = "en-US";
   }
 
-  speech.rate = 0.9;
+  speech.rate = 0.95;
 
   const voices = speechSynthesis.getVoices();
   speech.voice = voices.find(v => v.lang === speech.lang) || voices[0];
@@ -168,7 +197,7 @@ function speak(text) {
 // =====================
 async function send() {
   const input = document.getElementById("input");
-  let text = input.value;
+  let text = input.value.trim();
 
   if(!text) return;
 
@@ -184,7 +213,10 @@ async function send() {
   const data = await res.json();
 
   if(data.image){
-    chat.innerHTML += `<img src="${data.image}" width="300">`;
+    const img = document.createElement("img");
+    img.src = data.image;
+    chat.appendChild(img);
+    chat.scrollTop = chat.scrollHeight;
     return;
   }
 
@@ -193,7 +225,7 @@ async function send() {
 }
 
 // =====================
-// 🎤 VOICE INPUT
+// 🎤 VOICE INPUT (AUTO FIX)
 // =====================
 function startVoice(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -204,12 +236,21 @@ function startVoice(){
   }
 
   const rec = new SpeechRecognition();
+
+  rec.continuous = false;
+  rec.interimResults = false;
+
+  // 🔥 AUTO LANGUAGE
   rec.lang = navigator.language || "en-US";
 
   rec.onresult = e=>{
     const text = e.results[0][0].transcript;
     document.getElementById("input").value = text;
     send();
+  };
+
+  rec.onerror = e=>{
+    console.log("Voice error:", e);
   };
 
   rec.start();
@@ -220,6 +261,8 @@ function startVoice(){
 // =====================
 async function upload(){
   const file = document.getElementById("file").files[0];
+  if(!file) return;
+
   const form = new FormData();
   form.append("image",file);
 
