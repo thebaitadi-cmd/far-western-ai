@@ -1,7 +1,3 @@
-console.log("=== ENV CHECK ===");
-console.log("GROQ_KEYS:", process.env.GROQ_KEYS);
-console.log("GEMINI_KEY:", process.env.GEMINI_KEY);
-console.log("TOGETHER_KEY:", process.env.TOGETHER_KEY);
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
@@ -33,13 +29,17 @@ async function chatAI(prompt) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.1-70b-versatile",
+            model: "llama3-8b-8192",
             messages: [{ role: "user", content: prompt }]
           })
         });
 
         const data = await res.json();
-        if (data.choices) return data.choices[0].message.content;
+        if (data.choices && data.choices.length > 0) {
+  return data.choices[0].message.content;
+} else {
+  console.log("GROQ ERROR:", data);
+}
       } catch {}
     }
   }
