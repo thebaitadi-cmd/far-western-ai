@@ -18,11 +18,10 @@ function getKey() {
   return key;
 }
 
-// ✅ CHAT API (REAL AI)
+// ✅ CHAT API
 app.post("/api/chat", async (req, res) => {
   try {
     const userMsg = req.body.message;
-
     const apiKey = getKey();
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -32,7 +31,7 @@ app.post("/api/chat", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant", // ✅ FIXED MODEL
         messages: [
           { role: "system", content: "You are a smart AI assistant." },
           { role: "user", content: userMsg }
@@ -42,7 +41,13 @@ app.post("/api/chat", async (req, res) => {
 
     const data = await response.json();
 
-    const reply = data.choices?.[0]?.message?.content || "Error";
+    console.log(data); // 🔥 DEBUG (VERY IMPORTANT)
+
+    const reply = data.choices?.[0]?.message?.content;
+
+    if (!reply) {
+      return res.json({ reply: "API Error ⚠️" });
+    }
 
     res.json({ reply });
 
