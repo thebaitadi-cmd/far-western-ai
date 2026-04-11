@@ -11,7 +11,7 @@
     #chat {
       max-width: 600px;
       margin: auto;
-      margin-top: 50px;
+      margin-top: 40px;
     }
     .msg {
       padding: 10px;
@@ -25,25 +25,33 @@
     .bot {
       background: #222;
     }
+    #box {
+      position: fixed;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+    }
   </style>
 </head>
+
 <body>
 
 <div id="chat"></div>
 
-<input id="input" placeholder="Ask anything..." />
-<button onclick="send()">Send</button>
+<div id="box">
+  <input id="input" placeholder="Ask anything..." />
+  <button onclick="send()">Send</button>
+</div>
 
 <script>
 async function send() {
   const input = document.getElementById("input");
   const chat = document.getElementById("chat");
 
-  const text = input.value;
+  const text = input.value.trim();
   if (!text) return;
 
   chat.innerHTML += `<div class="msg user">${text}</div>`;
-
   input.value = "";
 
   try {
@@ -58,10 +66,18 @@ async function send() {
     const data = await res.json();
 
     chat.innerHTML += `<div class="msg bot">${data.reply}</div>`;
-  } catch {
-    chat.innerHTML += `<div class="msg bot">❌ Error</div>`;
+
+  } catch (err) {
+    chat.innerHTML += `<div class="msg bot">❌ Network Error</div>`;
   }
 }
+
+// ENTER KEY SUPPORT
+document.getElementById("input").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") {
+    send();
+  }
+});
 </script>
 
 </body>
