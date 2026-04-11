@@ -9,14 +9,13 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// 🧠 MEMORY + USER STYLE
+// 🧠 MEMORY
 // =====================
 let memory = [];
-let userStyle = "normal";
 
 function addMemory(u, b) {
   memory.push({ u, b });
-  if (memory.length > 8) memory.shift();
+  if (memory.length > 10) memory.shift();
 }
 
 function getContext() {
@@ -30,7 +29,7 @@ const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// ✂️ CLEAN
+// ✂️ CLEAN (NO CUT 🔥)
 // =====================
 function clean(text) {
   if (!text) return "";
@@ -39,12 +38,11 @@ function clean(text) {
     .replace(/\n+/g, " ")
     .replace(/[ ]+/g, " ")
     .replace(/AI:/gi, "")
-    .trim()
-    .slice(0, 200);
+    .trim(); // ❌ no slice
 }
 
 // =====================
-// 🌐 REALTIME GOOGLE
+// 🌐 GOOGLE REALTIME
 // =====================
 async function google(q) {
   try {
@@ -69,7 +67,6 @@ async function google(q) {
 // =====================
 // 🤖 AI PROVIDERS
 // =====================
-
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -82,7 +79,7 @@ async function groq(prompt) {
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.6
+          temperature: 0.5
         })
       });
 
@@ -106,7 +103,7 @@ async function openrouter(prompt) {
         body: JSON.stringify({
           model: "mistralai/mistral-7b-instruct",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.6
+          temperature: 0.5
         })
       });
 
@@ -160,46 +157,47 @@ async function cohere(prompt) {
 }
 
 // =====================
-// 🧠 INTENT DETECTOR (BRAIN)
+// 🧠 INTENT DETECTION
 // =====================
 async function detectIntent(prompt) {
-  const result = await groq(`
-Classify user intent:
-- coding
-- general
+  const res = await groq(`
+Classify intent:
 - realtime
 - summary
-- unclear
+- normal
 
 User: "${prompt}"
-
-Answer only one word.
+Answer one word only.
 `);
 
-  return result?.toLowerCase().trim();
+  return res?.toLowerCase().trim();
 }
 
 // =====================
-// 🧠 PARALLEL THINKING
+// 🧠 PARALLEL AI
 // =====================
-async function parallelThink(prompt) {
-  const [g, o, gm] = await Promise.all([
+async function parallel(prompt) {
+  const results = await Promise.all([
     groq(prompt),
     openrouter(prompt),
-    gemini(prompt)
+    gemini(prompt),
+    cohere(prompt)
   ]);
 
-  return [g, o, gm].filter(Boolean);
+  return results.filter(Boolean);
 }
 
 // =====================
-// 🧠 BEST ANSWER SELECTOR
+// 🧠 BEST ANSWER (SMART 🔥)
 // =====================
-function selectBest(responses) {
-  if (!responses.length) return null;
+function pickBest(arr) {
+  if (!arr.length) return null;
 
-  // 🔥 simple scoring: longest + informative
-  return responses.sort((a, b) => b.length - a.length)[0];
+  return arr.sort((a, b) => {
+    let scoreA = a.length + (a.includes("I don't know") ? -50 : 0);
+    let scoreB = b.length + (b.includes("I don't know") ? -50 : 0);
+    return scoreB - scoreA;
+  })[0];
 }
 
 // =====================
@@ -212,45 +210,38 @@ async function AI(prompt) {
 
   let extra = "";
 
-  if (intent === "realtime") {
-    const g = await google(prompt);
-    extra = g;
+  // 🔥 REALTIME FORCE
+  const g = await google(prompt);
+  if (g) {
+    extra = "\nREAL DATA:\n" + g;
   }
 
   if (intent === "summary") {
     prompt = `Summarize in 1 line:\n${ctx}`;
   }
 
-  // 🧠 build final prompt
   const finalPrompt = `
-You are a HIGH LEVEL AI.
+You are an ADVANCED AI.
 
-Rules:
-- Understand deeply
-- Reply in same language
-- Short but powerful
-- No guessing
+STRICT RULES:
+- NEVER GUESS
+- If not sure → say "I don't know"
+- Use real data if available
+- Natural human tone
+- Same language
 
-Context:
+Conversation:
 ${ctx}
 
 User: ${prompt}
 
-Extra:
 ${extra}
 `;
 
-  // 🚀 parallel thinking
-  const responses = await parallelThink(finalPrompt);
+  const responses = await parallel(finalPrompt);
+  let best = pickBest(responses);
 
-  // 🎯 best answer
-  let best = selectBest(responses);
-
-  if (!best) {
-    best = await cohere(finalPrompt);
-  }
-
-  return clean(best || "Try again");
+  return clean(best || "I don't know");
 }
 
 // =====================
@@ -274,4 +265,4 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log("🔥 MASTER AI RUNNING ON " + PORT));
+app.listen(PORT, () => console.log("🔥 MASTER AI v2 RUNNING ON " + PORT));
