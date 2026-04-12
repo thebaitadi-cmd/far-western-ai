@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
-const edgeTTS = require("edge-tts");
 
 const app = express();
 app.use(express.json());
@@ -10,7 +9,7 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// 🧠 MEMORY
+// MEMORY
 // =====================
 let memory = [];
 
@@ -24,25 +23,13 @@ function getContext() {
 }
 
 // =====================
-// 🔑 HELPERS
+// MULTI KEYS
 // =====================
 const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// ✂️ CLEAN (NO CUT)
-// =====================
-function clean(text) {
-  if (!text) return "";
-  return text
-    .replace(/\n+/g, " ")
-    .replace(/[ ]+/g, " ")
-    .replace(/AI:/gi, "")
-    .trim();
-}
-
-// =====================
-// 🌐 GOOGLE REALTIME
+// 🔥 REALTIME DATA (GOOGLE + NEWS)
 // =====================
 async function google(q) {
   try {
@@ -59,14 +46,25 @@ async function google(q) {
 
     const d = await r.json();
     return d?.organic?.map(x => x.snippet).join("\n") || "";
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
+}
+
+async function news(q) {
+  try {
+    if (!process.env.NEWSDATA_KEY) return "";
+
+    const r = await fetch(`https://newsdata.io/api/1/news?apikey=${process.env.NEWSDATA_KEY}&q=${q}`);
+    const d = await r.json();
+
+    return d?.results?.map(x => x.title).join("\n") || "";
+  } catch { return ""; }
 }
 
 // =====================
 // 🤖 AI PROVIDERS
 // =====================
+
+// GROQ
 async function groq(prompt) {
   for (let key of split("GROQ_KEYS")) {
     try {
@@ -78,43 +76,16 @@ async function groq(prompt) {
         },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.5
+          messages: [{ role: "user", content: prompt }]
         })
       });
-
       const d = await r.json();
-      if (d?.choices?.[0]?.message?.content) {
-        return d.choices[0].message.content;
-      }
+      if (d?.choices?.[0]?.message?.content) return d.choices[0].message.content;
     } catch {}
   }
 }
 
-async function openrouter(prompt) {
-  for (let key of split("OPENROUTER_KEYS")) {
-    try {
-      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.5
-        })
-      });
-
-      const d = await r.json();
-      if (d?.choices?.[0]?.message?.content) {
-        return d.choices[0].message.content;
-      }
-    } catch {}
-  }
-}
-
+// GEMINI
 async function gemini(prompt) {
   try {
     if (!process.env.GEMINI_KEY) return;
@@ -135,91 +106,131 @@ async function gemini(prompt) {
   } catch {}
 }
 
+// OPENROUTER
+async function openrouter(prompt) {
+  for (let key of split("OPENROUTER_KEYS")) {
+    try {
+      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "mistralai/mistral-7b-instruct",
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      const d = await r.json();
+      if (d?.choices?.[0]?.message?.content) return d.choices[0].message.content;
+    } catch {}
+  }
+}
+
+// TOGETHER AI
+async function together(prompt) {
+  try {
+    if (!process.env.TOGETHER_KEY) return;
+
+    const r = await fetch("https://api.together.xyz/v1/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TOGETHER_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        prompt: prompt,
+        max_tokens: 300
+      })
+    });
+
+    const d = await r.json();
+    return d?.choices?.[0]?.text;
+  } catch {}
+}
+
+// COHERE
+async function cohere(prompt) {
+  try {
+    if (!process.env.COHERE_KEY) return;
+
+    const r = await fetch("https://api.cohere.ai/v1/generate", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.COHERE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "command",
+        prompt: prompt,
+        max_tokens: 200
+      })
+    });
+
+    const d = await r.json();
+    return d?.generations?.[0]?.text;
+  } catch {}
+}
+
 // =====================
-// 🧠 MASTER AI (SMART)
+// 🧠 MASTER AI (NEVER FAIL)
 // =====================
 async function AI(prompt) {
 
   const ctx = getContext();
 
-  // 🔥 realtime auto detect
-  let extra = "";
-  if (prompt.toLowerCase().includes("today") || prompt.toLowerCase().includes("latest")) {
-    extra = await google(prompt);
-  }
+  const [g, n] = await Promise.all([
+    google(prompt),
+    news(prompt)
+  ]);
 
   const finalPrompt = `
-You are a HIGH LEVEL AI.
+You are a powerful real-time AI.
 
 Rules:
-- Same language
+- Always correct
+- No repetition
 - Human tone
-- Accurate answer
-- No guessing
-- Clear explanation if needed
+- Use latest info
 
 Conversation:
 ${ctx}
 
 User: ${prompt}
 
-${extra}
+Google:
+${g}
+
+News:
+${n}
 `;
 
-  // 🔥 parallel thinking
-  const results = await Promise.all([
+  const results = await Promise.allSettled([
     groq(finalPrompt),
+    gemini(finalPrompt),
     openrouter(finalPrompt),
-    gemini(finalPrompt)
+    together(finalPrompt),
+    cohere(finalPrompt)
   ]);
 
-  // 🔥 best answer selection
-  const best = results
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length)[0];
+  const outputs = results
+    .filter(r => r.status === "fulfilled")
+    .map(r => r.value)
+    .filter(Boolean);
 
-  return clean(best || "I don't know");
+  const best = outputs.sort((a,b)=>b.length-a.length)[0];
+
+  return best?.replace(/\n+/g, " ").trim() || "⚠️ AI failed, try again";
 }
 
 // =====================
-// 🔊 EDGE TTS (FIXED)
-// =====================
-function detectVoice(text) {
-  if (/[\u0900-\u097F]/.test(text)) {
-    return "hi-IN-SwaraNeural"; // Hindi/Nepali
-  }
-  return "en-US-AriaNeural";
-}
-
-app.post("/tts", async (req, res) => {
-  try {
-    const text = req.body.text;
-
-    if (!text) return res.status(400).send("No text");
-
-    const voice = detectVoice(text);
-
-    const stream = await edgeTTS({
-      text,
-      voice
-    });
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    stream.pipe(res);
-
-  } catch (e) {
-    console.log(e);
-    res.status(500).send("TTS error");
-  }
-});
-
-// =====================
-// 🚀 CHAT ROUTE
+// CHAT
 // =====================
 app.post("/chat", async (req, res) => {
   try {
     const msg = req.body.message;
-
     if (!msg) return res.json({ reply: "Say something" });
 
     const reply = await AI(msg);
@@ -234,5 +245,6 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-// =====================
-app.listen(PORT, () => console.log("🔥 MASTER AI + EDGE VOICE RUNNING " + PORT));
+app.listen(PORT, () =>
+  console.log("🔥 SUPER AI RUNNING ON PORT " + PORT)
+);
