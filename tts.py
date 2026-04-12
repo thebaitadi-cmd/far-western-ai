@@ -1,35 +1,30 @@
 import sys
 import asyncio
 import edge_tts
-import os
 
-OUTPUT_FILE = "output.mp3"
+# =========================
+# SETTINGS
+# =========================
+VOICE = "en-IN-NeerjaNeural"   # 🔥 best Indian female voice
+# other options:
+# "en-US-GuyNeural"
+# "en-IN-PrabhatNeural"
 
-# Get text
-if len(sys.argv) < 2:
-    print("No text provided")
-    sys.exit(1)
+# =========================
+# TTS FUNCTION
+# =========================
+async def generate(text):
+    communicate = edge_tts.Communicate(text, VOICE)
+    await communicate.save("output.mp3")
 
-text = " ".join(sys.argv[1:])
+# =========================
+# MAIN
+# =========================
+if __name__ == "__main__":
+    text = " ".join(sys.argv[1:])
 
-async def generate():
-    try:
-        communicate = edge_tts.Communicate(
-            text=text,
-            voice="en-IN-NeerjaNeural",  # 🔥 Best human voice
-            rate="+5%",
-            volume="+0%"
-        )
+    if not text:
+        print("No text provided")
+        sys.exit()
 
-        if os.path.exists(OUTPUT_FILE):
-            os.remove(OUTPUT_FILE)
-
-        await communicate.save(OUTPUT_FILE)
-
-        print(OUTPUT_FILE)
-
-    except Exception as e:
-        print("Error:", str(e))
-        sys.exit(1)
-
-asyncio.run(generate())
+    asyncio.run(generate(text))

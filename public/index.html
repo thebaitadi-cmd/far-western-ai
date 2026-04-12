@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Far Western AI</title>
+<title>JARVIS AI</title>
 
 <style>
 body {
@@ -10,40 +10,13 @@ body {
   background:black;
   color:white;
   font-family:sans-serif;
+  text-align:center;
 }
 
 h1 {
-  text-align:center;
   background:linear-gradient(45deg,cyan,purple);
   -webkit-background-clip:text;
   color:transparent;
-}
-
-.chat {
-  max-width:700px;
-  margin:auto;
-  padding-bottom:120px;
-}
-
-.msg {
-  padding:12px;
-  margin:10px;
-  border-radius:12px;
-  line-height:1.6;
-  white-space:pre-wrap;
-  max-width:85%;
-}
-
-.user {
-  background:linear-gradient(45deg,blue,purple);
-  margin-left:auto;
-  text-align:right;
-}
-
-.bot {
-  background:#111;
-  border:1px solid cyan;
-  box-shadow:0 0 10px cyan;
 }
 
 #bottom {
@@ -52,9 +25,6 @@ h1 {
   width:100%;
   background:#000;
   padding:10px;
-  display:flex;
-  gap:5px;
-  justify-content:center;
 }
 
 input {
@@ -62,7 +32,6 @@ input {
   border:none;
   border-radius:8px;
   width:60%;
-  max-width:500px;
 }
 
 button {
@@ -71,182 +40,133 @@ button {
   border:none;
   border-radius:8px;
   color:white;
-  cursor:pointer;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🚀 Far Western AI</h1>
-
-<div id="chat" class="chat"></div>
+<h1>🎙️ JARVIS AI</h1>
 
 <div id="bottom">
-  <input id="input" placeholder="Type your message..." />
-  <button onclick="send()">Send</button>
+  <input id="input" placeholder="Speak..." />
   <button onclick="startVoice()">🎤</button>
 </div>
 
 <script>
 
-const chat = document.getElementById("chat");
-const inputBox = document.getElementById("input");
-
-let currentSpeech = null;
-let recognition = null;
-let requestId = 0;
+let currentAudio=null;
+let recognition=null;
+let controller=null;
 
 // =====================
-// ADD MESSAGE
+// 🔊 SPEAK
 // =====================
-function add(text,type) {
-  const d = document.createElement("div");
-  d.className = "msg " + type;
-  d.innerText = text;
-  chat.appendChild(d);
+async function speak(text){
 
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// =====================
-// TYPING EFFECT (INTERRUPT SAFE)
-// =====================
-function typeText(text, callback) {
-
-  const d = document.createElement("div");
-  d.className = "msg bot";
-  chat.appendChild(d);
-
-  let i = 0;
-  const myId = requestId;
-
-  const interval = setInterval(()=>{
-
-    // 🔥 STOP if new request
-    if (myId !== requestId) {
-      clearInterval(interval);
-      return;
+  try{
+    if(currentAudio){
+      currentAudio.pause();
+      currentAudio=null;
     }
 
-    d.innerText += text[i];
-    i++;
-
-    if(i >= text.length){
-      clearInterval(interval);
-      if(callback) callback();
-    }
-
-  }, 10);
-
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// =====================
-// 🔊 VOICE OUTPUT (FAST + INTERRUPT)
-// =====================
-function speak(text){
-
-  // 🔥 stop old speech
-  if(currentSpeech){
-    speechSynthesis.cancel();
-  }
-
-  const utter = new SpeechSynthesisUtterance(text);
-
-  utter.rate = 1;
-  utter.pitch = 1;
-
-  currentSpeech = utter;
-
-  speechSynthesis.speak(utter);
-}
-
-// =====================
-// SEND MESSAGE
-// =====================
-async function send(){
-
-  // 🔥 stop voice
-  speechSynthesis.cancel();
-
-  const text = inputBox.value.trim();
-  if(!text) return;
-
-  requestId++; // 🔥 interrupt system
-
-  add(text,"user");
-  inputBox.value = "";
-
-  const loading = document.createElement("div");
-  loading.className = "msg bot";
-  loading.innerText = "Thinking...";
-  chat.appendChild(loading);
-
-  chat.scrollTop = chat.scrollHeight;
-
-  try {
-    const res = await fetch("/chat",{
+    const res=await fetch("/tts",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:text})
+      body:JSON.stringify({text})
     });
 
-    const data = await res.json();
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
 
-    loading.remove();
+    const audio=new Audio(url);
+    currentAudio=audio;
 
-    if(!data.reply){
-      add("No response","bot");
-      return;
-    }
+    audio.onended=()=>{
+      URL.revokeObjectURL(url);
 
-    typeText(data.reply, ()=>{
-      speak(data.reply); // 🔥 instant voice
-    });
+      // 🔥 AUTO LISTEN AGAIN
+      startVoice();
+    };
 
-  } catch (e) {
-    loading.remove();
-    add("Server error","bot");
+    audio.play();
+
+  }catch(e){
+    console.log(e);
   }
 }
 
 // =====================
-// 🎤 VOICE INPUT (SMART INTERRUPT)
+// 🚀 SEND
+// =====================
+async function send(text){
+
+  if(currentAudio){
+    currentAudio.pause();
+    currentAudio=null;
+  }
+
+  if(controller){
+    controller.abort();
+  }
+
+  controller=new AbortController();
+
+  try{
+    const res=await fetch("/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:text}),
+      signal:controller.signal
+    });
+
+    const data=await res.json();
+    speak(data.reply);
+
+  }catch(e){
+    console.log("cancel/error",e);
+  }
+}
+
+// =====================
+// 🎤 VOICE INPUT (CONTINUOUS)
 // =====================
 function startVoice(){
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 
-  if (!SpeechRecognition) {
+  if(!SR){
     alert("Voice not supported");
     return;
   }
 
-  // 🔥 stop AI speaking
-  speechSynthesis.cancel();
-  requestId++;
+  // 🔥 stop voice instantly
+  if(currentAudio){
+    currentAudio.pause();
+    currentAudio=null;
+  }
 
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
+  // 🔥 cancel old request
+  if(controller){
+    controller.abort();
+  }
 
-  recognition.onresult = e=>{
-    const text = e.results[0][0].transcript;
-    inputBox.value = text;
-    send();
+  recognition=new SR();
+  recognition.lang="en-US";
+  recognition.continuous=false;
+
+  recognition.onresult=e=>{
+    const text=e.results[0][0].transcript;
+    send(text);
+  };
+
+  recognition.onend=()=>{
+    // 🔥 keep listening (JARVIS mode)
+    setTimeout(startVoice,500);
   };
 
   recognition.start();
 }
-
-// =====================
-// ENTER SEND
-// =====================
-inputBox.addEventListener("keypress", function(e){
-  if(e.key === "Enter"){
-    send();
-  }
-});
 
 </script>
 
