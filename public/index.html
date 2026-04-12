@@ -10,10 +10,10 @@ body {
   background:black;
   color:white;
   font-family:sans-serif;
-  text-align:center;
 }
 
 h1 {
+  text-align:center;
   background:linear-gradient(45deg,cyan,purple);
   -webkit-background-clip:text;
   color:transparent;
@@ -25,6 +25,9 @@ h1 {
   width:100%;
   background:#000;
   padding:10px;
+  display:flex;
+  gap:5px;
+  justify-content:center;
 }
 
 input {
@@ -32,6 +35,7 @@ input {
   border:none;
   border-radius:8px;
   width:60%;
+  max-width:500px;
 }
 
 button {
@@ -40,6 +44,7 @@ button {
   border:none;
   border-radius:8px;
   color:white;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -49,124 +54,144 @@ button {
 <h1>🎙️ JARVIS AI</h1>
 
 <div id="bottom">
-  <input id="input" placeholder="Speak..." />
+  <input id="input" placeholder="Speak or type..." />
+  <button onclick="send()">Send</button>
   <button onclick="startVoice()">🎤</button>
 </div>
 
 <script>
 
-let currentAudio=null;
-let recognition=null;
-let controller=null;
+const inputBox = document.getElementById("input");
+
+let currentAudio = null;
+let recognition = null;
+let controller = null;
 
 // =====================
-// 🔊 SPEAK
+// 🔊 SPEAK (VOICE ONLY)
 // =====================
-async function speak(text){
-
-  try{
-    if(currentAudio){
+async function speak(text) {
+  try {
+    // stop previous voice
+    if (currentAudio) {
       currentAudio.pause();
-      currentAudio=null;
+      currentAudio = null;
     }
 
-    const res=await fetch("/tts",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text})
+    const res = await fetch("/tts", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ text })
     });
 
-    const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
 
-    const audio=new Audio(url);
-    currentAudio=audio;
+    const audio = new Audio(url);
+    currentAudio = audio;
 
-    audio.onended=()=>{
+    audio.onended = () => {
       URL.revokeObjectURL(url);
-
-      // 🔥 AUTO LISTEN AGAIN
-      startVoice();
+      currentAudio = null;
     };
 
     audio.play();
 
-  }catch(e){
-    console.log(e);
+  } catch (e) {
+    console.log("Voice error", e);
   }
 }
 
 // =====================
-// 🚀 SEND
+// 🚀 SEND (SMART)
 // =====================
-async function send(text){
+async function send() {
 
-  if(currentAudio){
+  // stop speaking
+  if (currentAudio) {
     currentAudio.pause();
-    currentAudio=null;
+    currentAudio = null;
   }
 
-  if(controller){
+  // cancel previous request
+  if (controller) {
     controller.abort();
   }
 
-  controller=new AbortController();
+  controller = new AbortController();
 
-  try{
-    const res=await fetch("/chat",{
+  const text = inputBox.value.trim();
+  if (!text) return;
+
+  inputBox.value = "";
+
+  try {
+    const res = await fetch("/chat", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:text}),
-      signal:controller.signal
+      body: JSON.stringify({ message:text }),
+      signal: controller.signal
     });
 
-    const data=await res.json();
+    const data = await res.json();
+
+    // 🔥 ONLY VOICE OUTPUT (NO TEXT UI)
     speak(data.reply);
 
-  }catch(e){
-    console.log("cancel/error",e);
+  } catch (e) {
+    console.log("Request cancelled / error", e);
   }
 }
 
 // =====================
-// 🎤 VOICE INPUT (CONTINUOUS)
+// 🎤 VOICE INPUT
 // =====================
 function startVoice(){
 
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  if(!SR){
-    alert("Voice not supported");
+  if (!SpeechRecognition) {
+    alert("Voice not supported in this browser");
     return;
   }
 
-  // 🔥 stop voice instantly
-  if(currentAudio){
+  // stop AI voice immediately
+  if (currentAudio) {
     currentAudio.pause();
-    currentAudio=null;
+    currentAudio = null;
   }
 
-  // 🔥 cancel old request
-  if(controller){
+  // cancel running request
+  if (controller) {
     controller.abort();
   }
 
-  recognition=new SR();
-  recognition.lang="en-US";
-  recognition.continuous=false;
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-IN";
+  recognition.continuous = false;
+  recognition.interimResults = false;
 
-  recognition.onresult=e=>{
-    const text=e.results[0][0].transcript;
-    send(text);
+  recognition.onresult = e => {
+    const text = e.results[0][0].transcript;
+    inputBox.value = text;
+    send();
   };
 
-  recognition.onend=()=>{
-    // 🔥 keep listening (JARVIS mode)
-    setTimeout(startVoice,500);
+  recognition.onerror = e => {
+    console.log("Voice error", e);
   };
 
   recognition.start();
 }
+
+// =====================
+// ENTER KEY SUPPORT
+// =====================
+inputBox.addEventListener("keypress", function(e){
+  if(e.key === "Enter"){
+    send();
+  }
+});
 
 </script>
 

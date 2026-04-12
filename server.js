@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const fetch = require("node-fetch");
+// ❌ REMOVE node-fetch (Node 18+ me built-in hota hai)
 const edgeTTS = require("edge-tts");
 
 const app = express();
@@ -10,7 +10,7 @@ app.use(express.static("public"));
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// MEMORY
+// 🧠 MEMORY
 // =====================
 let memory = [];
 
@@ -24,13 +24,13 @@ function getContext() {
 }
 
 // =====================
-// KEYS
+// 🔑 MULTI KEYS
 // =====================
 const split = (k) =>
   process.env[k]?.split(",").map(x => x.trim()).filter(Boolean) || [];
 
 // =====================
-// REALTIME DATA
+// 🌐 REALTIME DATA
 // =====================
 async function google(q) {
   try {
@@ -44,7 +44,7 @@ async function google(q) {
       body: JSON.stringify({ q })
     });
     const d = await r.json();
-    return d?.organic?.map(x => x.snippet).join("\n") || "";
+    return d?.organic?.map(x => x.snippet).join(" ") || "";
   } catch { return ""; }
 }
 
@@ -53,7 +53,7 @@ async function news(q) {
     if (!process.env.NEWSDATA_KEY) return "";
     const r = await fetch(`https://newsdata.io/api/1/news?apikey=${process.env.NEWSDATA_KEY}&q=${q}`);
     const d = await r.json();
-    return d?.results?.map(x => x.title).join("\n") || "";
+    return d?.results?.map(x => x.title).join(" ") || "";
   } catch { return ""; }
 }
 
@@ -135,7 +135,7 @@ const d=await r.json();
 return d?.[0]?.generated_text;
 }catch{}}
 
-// 9 SERPAPI AI
+// 9 SERPAPI
 async function serpapi(p){
 try{
 if(!process.env.SERPAPI_KEY) return;
@@ -145,10 +145,12 @@ return d?.organic_results?.map(x=>x.snippet).join(" ");
 }catch{}}
 
 // 10 FALLBACK
-async function fallback(){return "System busy, retrying...";}
+async function fallback(){
+return "⚠️ AI fallback response";
+}
 
 // =====================
-// 🧠 MASTER AI (SMART)
+// 🧠 MASTER AI
 // =====================
 async function AI(prompt){
 
@@ -172,9 +174,10 @@ return best || "Try again";
 }
 
 // =====================
-// 🔊 VOICE
+// 🔊 TTS (REAL HUMAN VOICE)
 // =====================
 app.post("/tts", async (req,res)=>{
+try{
 const stream=await edgeTTS({
 text:req.body.text,
 voice:"en-IN-NeerjaNeural",
@@ -182,10 +185,13 @@ rate:"+5%"
 });
 res.setHeader("Content-Type","audio/mpeg");
 stream.pipe(res);
+}catch{
+res.status(500).send("TTS error");
+}
 });
 
 // =====================
-// CHAT
+// 🚀 CHAT
 // =====================
 app.post("/chat", async (req,res)=>{
 const reply=await AI(req.body.message);
@@ -193,4 +199,5 @@ addMemory(req.body.message,reply);
 res.json({reply});
 });
 
-app.listen(PORT,()=>console.log("🔥 10 AI JARVIS RUNNING"));
+// =====================
+app.listen(PORT,()=>console.log("🔥 10 AI JARVIS RUNNING ON",PORT));
