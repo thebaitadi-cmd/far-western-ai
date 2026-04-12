@@ -1,30 +1,14 @@
+from gtts import gTTS
 import sys
-import asyncio
-import edge_tts
 
-# =========================
-# SETTINGS
-# =========================
-VOICE = "en-IN-NeerjaNeural"   # 🔥 best Indian female voice
-# other options:
-# "en-US-GuyNeural"
-# "en-IN-PrabhatNeural"
+text = sys.argv[1]
 
-# =========================
-# TTS FUNCTION
-# =========================
-async def generate(text):
-    communicate = edge_tts.Communicate(text, VOICE)
-    await communicate.save("output.mp3")
+# simple detection
+lang = "en"
+if any(x in text for x in ["hai", "kya", "kaise"]):
+    lang = "hi"
+elif any(x in text for x in ["cha", "ke", "kasari"]):
+    lang = "ne"
 
-# =========================
-# MAIN
-# =========================
-if __name__ == "__main__":
-    text = " ".join(sys.argv[1:])
-
-    if not text:
-        print("No text provided")
-        sys.exit()
-
-    asyncio.run(generate(text))
+tts = gTTS(text, lang=lang)
+tts.save("public/output.mp3")
