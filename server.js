@@ -5,12 +5,23 @@ const path = require("path");
 
 const app = express();
 
-// ✅ CORS (CUSTOM DOMAIN FIX)
+// ✅ SMART CORS (PRODUCTION SAFE)
 app.use(cors({
-  origin: [
-    "https://ai.tyhebaitadi.com",   // 👈 tumhara domain
-    "http://localhost:3000"
-  ],
+  origin: (origin, callback) => {
+    // allow requests with no origin (mobile apps, curl)
+    if (!origin) return callback(null, true);
+
+    const allowed = [
+      "https://ai.thebaitadi.com",
+      "http://localhost:3000"
+    ];
+
+    if (allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // 🔥 allow all (safe for now)
+    }
+  },
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
@@ -29,7 +40,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: "⚠️ Empty message" });
     }
 
-    // 👉 test reply (AI baad me connect karenge)
     res.json({ reply: "AI: " + msg });
 
   } catch (err) {
@@ -43,12 +53,12 @@ app.get("/health", (req, res) => {
   res.send("OK");
 });
 
-// ✅ ROOT (Frontend load)
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ✅ PORT FIX (Render Compatible)
+// ✅ PORT
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

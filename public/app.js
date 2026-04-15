@@ -9,7 +9,7 @@ let isListening = false;
 let isSpeaking = false;
 
 // 🌐 YOUR DOMAIN (FINAL)
-const API_URL = "https://ai.tyhebaitadi.com";
+const API_URL = "https://ai.thebaitadi.com";
 
 // 🧠 ADD MESSAGE UI
 function addMessage(text, sender) {
@@ -35,11 +35,19 @@ async function sendText() {
       body: JSON.stringify({ msg })
     });
 
-    const data = await res.json();
+    if (!res.ok) throw new Error("Server error");
+
+    const data = await res.json().catch(() => null);
+
+    if (!data || !data.reply) {
+      addMessage("⚠️ Invalid response", "bot");
+      return;
+    }
+
     addMessage(data.reply, "bot");
 
   } catch (err) {
-    addMessage("⚠️ Server Error", "bot");
+    addMessage("⚠️ Server not responding", "bot");
   }
 }
 
@@ -67,17 +75,20 @@ function startMic() {
         body: JSON.stringify({ msg: text })
       });
 
-      const data = await res.json();
+      if (!res.ok) throw new Error();
+
+      const data = await res.json().catch(() => null);
+      if (!data || !data.reply) return;
 
       recognition.stop();
       isSpeaking = true;
 
-      // 🔊 SAFE VOICE (browser TTS fallback)
       const speech = new SpeechSynthesisUtterance(data.reply);
       speech.onend = () => {
         isSpeaking = false;
         recognition.start();
       };
+
       speechSynthesis.speak(speech);
 
     } catch (err) {
@@ -95,12 +106,11 @@ function stopMic() {
 
   isListening = false;
 
-  // UI RESET
   input.style.display = "block";
   sendBtn.style.display = "block";
   overlay.classList.add("hidden");
 
-  speechSynthesis.cancel(); // 🔥 stop voice
+  speechSynthesis.cancel();
 }
 
 // 🔘 BUTTONS
