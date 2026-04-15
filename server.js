@@ -1,8 +1,12 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const path = require("path");
 
 const app = express();
+
+// ✅ FIX CORS
+app.use(cors());
 
 // ✅ MIDDLEWARE
 app.use(express.json());
@@ -13,22 +17,18 @@ app.post("/chat", async (req, res) => {
   const { msg } = req.body;
 
   try {
-    // 👉 yaha apna AI logic already hoga (Gemini etc)
-    // फिलहाल demo response:
     res.json({ reply: "AI: " + msg });
-
   } catch (err) {
-    console.log(err);
     res.json({ reply: "⚠️ Error" });
   }
 });
 
-// ✅ ROOT FIX (important)
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ✅ 🔥 PORT FIX (MOST IMPORTANT)
+// ✅ PORT FIX
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
