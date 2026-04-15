@@ -8,6 +8,9 @@ let recognition;
 let isListening = false;
 let isSpeaking = false;
 
+// 🌐 YOUR DOMAIN (FINAL)
+const API_URL = "https://ai.tyhebaitadi.com";
+
 // 🧠 ADD MESSAGE UI
 function addMessage(text, sender) {
   const div = document.createElement("div");
@@ -26,7 +29,7 @@ async function sendText() {
   input.value = "";
 
   try {
-    const res = await fetch("/chat", {
+    const res = await fetch(`${API_URL}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ msg })
@@ -36,11 +39,11 @@ async function sendText() {
     addMessage(data.reply, "bot");
 
   } catch (err) {
-    addMessage("⚠️ Error", "bot");
+    addMessage("⚠️ Server Error", "bot");
   }
 }
 
-// 🎤 START MIC (CLEAN UI - NO ANIMATION)
+// 🎤 START MIC
 function startMic() {
   recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
@@ -58,9 +61,9 @@ function startMic() {
     const text = event.results[event.results.length - 1][0].transcript;
 
     try {
-      const res = await fetch("/chat", {
+      const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ msg: text })
       });
 
@@ -69,14 +72,13 @@ function startMic() {
       recognition.stop();
       isSpeaking = true;
 
-      const audio = new Audio(`/voice?text=${encodeURIComponent(data.reply)}`);
-
-      audio.onended = () => {
+      // 🔊 SAFE VOICE (browser TTS fallback)
+      const speech = new SpeechSynthesisUtterance(data.reply);
+      speech.onend = () => {
         isSpeaking = false;
         recognition.start();
       };
-
-      audio.play();
+      speechSynthesis.speak(speech);
 
     } catch (err) {
       console.log("Voice error");
@@ -97,6 +99,8 @@ function stopMic() {
   input.style.display = "block";
   sendBtn.style.display = "block";
   overlay.classList.add("hidden");
+
+  speechSynthesis.cancel(); // 🔥 stop voice
 }
 
 // 🔘 BUTTONS
