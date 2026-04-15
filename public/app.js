@@ -1,131 +1,113 @@
-let isVoiceMode = false;
+const input = document.getElementById("msg");
+const chat = document.getElementById("chat");
+const sendBtn = document.getElementById("send");
+const micBtn = document.getElementById("mic");
+const overlay = document.getElementById("voiceOverlay");
+
 let recognition;
-let currentAudio = null;
+let isListening = false;
+let isSpeaking = false;
 
-/* ================= TEXT MODE ================= */
-async function send() {
-  if (isVoiceMode) return;
+// 🧠 ADD MESSAGE UI
+function addMessage(text, sender) {
+  const div = document.createElement("div");
+  div.className = "msg " + sender;
+  div.innerText = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-  const input = document.getElementById("input");
-  const chatbox = document.getElementById("chatbox");
+// 💬 TEXT MODE
+async function sendText() {
+  const msg = input.value.trim();
+  if (!msg) return;
 
-  const message = input.value.trim();
-  if (!message) return;
-
-  chatbox.innerHTML += `<div class="user">🧑 ${message}</div>`;
+  addMessage(msg, "user");
   input.value = "";
 
   try {
     const res = await fetch("/chat", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({message})
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ msg })
     });
 
     const data = await res.json();
+    addMessage(data.reply, "bot");
 
-    chatbox.innerHTML += `<div class="bot">🤖 ${data.reply}</div>`;
-
-    playAudio(data.audio);
-
-    chatbox.scrollTop = chatbox.scrollHeight;
-
-  } catch (e) {
-    console.log("Error:", e);
+  } catch (err) {
+    addMessage("⚠️ Error", "bot");
   }
 }
 
+// 🎤 START MIC (CLEAN UI - NO ANIMATION)
+function startMic() {
+  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
-/* ================= VOICE MODE ================= */
-function startVoice() {
-
-  isVoiceMode = true;
-
-  // 🎨 UI
-  document.getElementById("chatbox").innerHTML = `
-    <div class="voice-mode">
-      <div class="orb"></div>
-      <h2>🎤 Listening...</h2>
-      <p>Far-Western AI Brain Active</p>
-      <button onclick="stopVoice()">❌ Stop</button>
-    </div>
-  `;
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (!SpeechRecognition) {
-    alert("Voice not supported");
-    return;
-  }
-
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-IN";
   recognition.continuous = true;
-  recognition.interimResults = false;
+  recognition.lang = "en-US";
 
-  recognition.onresult = async function(event) {
+  // UI MODE
+  input.style.display = "none";
+  sendBtn.style.display = "none";
+  overlay.classList.remove("hidden");
+
+  recognition.onresult = async (event) => {
+    if (isSpeaking) return;
+
+    const text = event.results[event.results.length - 1][0].transcript;
+
     try {
-      const text = event.results[event.results.length - 1][0].transcript;
-
       const res = await fetch("/chat", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({message: text})
+        body: JSON.stringify({ msg: text })
       });
 
       const data = await res.json();
 
-      await playAudio(data.audio);
+      recognition.stop();
+      isSpeaking = true;
 
-    } catch (e) {
-      console.log("Voice error:", e);
-    }
-  };
+      const audio = new Audio(`/voice?text=${encodeURIComponent(data.reply)}`);
 
-  // 🔥 AUTO RESTART (important fix)
-  recognition.onend = () => {
-    if (isVoiceMode) {
-      recognition.start();
+      audio.onended = () => {
+        isSpeaking = false;
+        recognition.start();
+      };
+
+      audio.play();
+
+    } catch (err) {
+      console.log("Voice error");
     }
   };
 
   recognition.start();
+  isListening = true;
 }
 
-
-/* ================= AUDIO PLAYER ================= */
-async function playAudio(src) {
-  try {
-    if (!src) return;
-
-    // 🔥 stop old audio
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio = null;
-    }
-
-    const audio = new Audio(src + "?t=" + Date.now());
-    currentAudio = audio;
-
-    await audio.play();
-
-  } catch (e) {
-    console.log("Audio error:", e);
-  }
-}
-
-
-/* ================= STOP VOICE ================= */
-function stopVoice() {
-  isVoiceMode = false;
-
+// ⛔ STOP MIC
+function stopMic() {
   if (recognition) recognition.stop();
 
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
+  isListening = false;
 
-  // UI reset
-  document.getElementById("chatbox").innerHTML = "";
+  // UI RESET
+  input.style.display = "block";
+  sendBtn.style.display = "block";
+  overlay.classList.add("hidden");
 }
+
+// 🔘 BUTTONS
+sendBtn.onclick = sendText;
+
+micBtn.onclick = () => {
+  if (!isListening) {
+    startMic();
+    micBtn.innerText = "🛑 Stop";
+  } else {
+    stopMic();
+    micBtn.innerText = "🎤 Mic";
+  }
+};

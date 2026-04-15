@@ -1,180 +1,45 @@
-/* ================= BASE ================= */
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at top, #050505, #000);
-  color: white;
-  display: flex;
-  justify-content: center;
+/* 🧠 LOGO WRAPPER */
+.logo-wrapper {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  aspect-ratio: 1/1;
 }
 
-/* ================= CONTAINER ================= */
-.container {
-  width: 650px;
-  margin-top: 30px;
-  text-align: center;
-}
-
-/* ================= TITLE ================= */
-h1 {
-  font-size: 32px;
-  background: linear-gradient(90deg, #00f, #0ff, #0f0, #f0f);
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: glow 4s infinite linear;
-  text-shadow: 0 0 20px rgba(0,255,255,0.6);
-}
-
-@keyframes glow {
-  0% {filter: hue-rotate(0deg);}
-  100% {filter: hue-rotate(360deg);}
-}
-
-/* ================= CHATBOX ================= */
-#chatbox {
-  height: 350px;
-  overflow-y: auto;
-  border: 1px solid rgba(0,255,255,0.3);
-  padding: 15px;
-  margin: 20px 0;
-  border-radius: 15px;
-  background: rgba(0,0,0,0.7);
-  box-shadow: 0 0 15px rgba(0,255,255,0.2);
-}
-
-/* ================= USER ================= */
-.user {
-  text-align: right;
-  margin: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  background: linear-gradient(45deg, #007bff, #8a2be2);
-  color: white;
-  display: inline-block;
-  max-width: 75%;
-}
-
-/* ================= BOT ================= */
-.bot {
-  text-align: left;
-  margin: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  background: #111;
-  border: 1px solid #0ff;
-  color: #ffffff;
-  box-shadow: 0 0 10px rgba(0,255,255,0.4);
-  display: inline-block;
-  max-width: 75%;
-}
-
-/* ================= INPUT ================= */
-.input-area {
-  display: flex;
-  gap: 10px;
-}
-
-input {
-  flex: 1;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
-  outline: none;
-  background: #111;
-  color: white;
-  box-shadow: inset 0 0 10px rgba(0,255,255,0.2);
-}
-
-/* ================= BUTTON ================= */
-button {
-  padding: 12px;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  background: linear-gradient(45deg, #00f, #0ff);
-  color: white;
-  box-shadow: 0 0 10px rgba(0,255,255,0.5);
-  transition: 0.2s;
-}
-
-button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(0,255,255,0.8);
-}
-
-/* 🎤 Voice Button */
-button:last-child {
-  background: linear-gradient(45deg, #ff00ff, #00ffff);
-  box-shadow: 0 0 15px rgba(255,0,255,0.7);
-}
-
-/* ================= AUDIO ================= */
-audio {
-  margin-top: 15px;
-  width: 100%;
-  filter: invert(1);
-}
-
-/* ================= VOICE MODE ================= */
-.voice-mode {
-  text-align: center;
-  margin-top: 40px;
-}
-
-/* 🔥 AI ORB */
-.orb {
-  width: 120px;
-  height: 120px;
-  margin: 20px auto;
+/* 🎯 PERFECT FIT THIN RING */
+.ring {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  background: radial-gradient(circle, #00ffff, #000);
-  box-shadow:
-    0 0 20px #00ffff,
-    0 0 40px #00ffff,
-    0 0 60px #00ffff;
-  animation: pulse 1.5s infinite ease-in-out,
-             hueShift 6s infinite linear;
+
+  border: 2px solid transparent;
+
+  background: conic-gradient(
+    #ff00cc,
+    #00ffe1,
+    #ffaa00,
+    #00ff99,
+    #ff0055,
+    #ff00cc
+  ) border-box;
+
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
 }
 
-/* 💓 Pulse */
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 20px #00ffff;
-  }
-  50% {
-    transform: scale(1.2);
-    box-shadow: 0 0 60px #00ffff;
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 20px #00ffff;
-  }
-}
+/* 🧠 LOGO IMAGE (FINAL PERFECT FIT) */
+.logo-img {
+  position: absolute;
 
-/* 🌈 Color shift */
-@keyframes hueShift {
-  0% { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(360deg); }
-}
+  inset: 2px; /* 🔥 PERFECT EDGE MATCH */
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
 
-/* 🎤 Listening Text */
-.voice-mode h2 {
-  margin-top: 10px;
-  font-size: 20px;
-  color: #0ff;
-  text-shadow: 0 0 10px #0ff;
-}
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
 
-/* 🧠 AI Status */
-.voice-mode p {
-  color: #aaa;
-  font-size: 14px;
-}
-
-/* ❌ Stop Button */
-.voice-mode button {
-  margin-top: 15px;
-  background: linear-gradient(45deg, red, orange);
-  box-shadow: 0 0 15px red;
+  z-index: 2;
 }
