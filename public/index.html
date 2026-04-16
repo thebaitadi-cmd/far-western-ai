@@ -14,12 +14,35 @@ body {
   justify-content: center;
   align-items: center;
   height: 100vh;
+  gap: 15px;
 }
 
-/* 📦 CHAT BOX (UPDATED SIZE + SIDE SPACE) */
+/* 🔥 SIDE PANELS */
+.side-panel {
+  width: 180px;
+  height: 92vh;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 16px;
+  padding: 10px;
+  color: white;
+  font-size: 12px;
+  overflow-y: auto;
+
+  box-shadow:
+    0 0 10px rgba(0,255,225,0.1),
+    0 0 20px rgba(0,255,225,0.05);
+}
+
+.panel-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #00ffe1;
+}
+
+/* 📦 MAIN CHAT */
 .container {
-  width: 90%;              /* ✅ responsive */
-  max-width: 520px;        /* ✅ bigger but controlled */
+  width: 90%;
+  max-width: 520px;
   height: 92vh;
   background: rgba(15, 23, 42, 0.95);
   border-radius: 18px;
@@ -75,25 +98,18 @@ body {
   font-size: 14px;
 }
 
-/* 👤 USER → LEFT */
+/* 👤 USER */
 .user {
   align-self: flex-start;
   background: rgba(59, 130, 246, 0.2);
-
-  box-shadow:
-    0 0 5px #00ffe1,
-    0 0 10px #00bcd4;
+  box-shadow: 0 0 5px #00ffe1, 0 0 10px #00bcd4;
 }
 
-/* 🤖 BOT → RIGHT */
+/* 🤖 BOT */
 .bot {
   align-self: flex-end;
   background: rgba(148, 163, 184, 0.15);
-
-  box-shadow:
-    0 0 5px #ff00cc,
-    0 0 10px #00ffe1,
-    0 0 15px #ffaa00;
+  box-shadow: 0 0 5px #ff00cc, 0 0 10px #00ffe1, 0 0 15px #ffaa00;
 }
 
 /* ⌨️ INPUT */
@@ -113,9 +129,7 @@ body {
   background: #0f172a;
   color: white;
 
-  box-shadow:
-    0 0 5px #00ffe1,
-    0 0 10px #ff00cc;
+  box-shadow: 0 0 5px #00ffe1, 0 0 10px #ff00cc;
 }
 
 .inputBox button {
@@ -148,7 +162,6 @@ body {
   flex-direction: column;
 }
 
-/* 🛑 STOP BUTTON */
 .stop-btn {
   margin-top: 20px;
   padding: 10px 20px;
@@ -164,7 +177,6 @@ body {
   display: none;
 }
 
-/* 🧠 VOICE TEXT */
 .ai-box {
   text-align: center;
 }
@@ -188,6 +200,16 @@ body {
 
 <body>
 
+<!-- 🧠 LEFT PANEL -->
+<div class="side-panel">
+  <div class="panel-title">🧠 Memory</div>
+  <div id="memoryBox">No memory yet</div>
+
+  <div class="panel-title" style="margin-top:10px;">🎯 Goal</div>
+  <div id="goalBox">No goal set</div>
+</div>
+
+<!-- 💬 MAIN CHAT -->
 <div class="container">
 
   <div class="top-bar">
@@ -202,7 +224,6 @@ body {
     <button id="mic">🎤 Mic</button>
   </div>
 
-  <!-- 🔥 VOICE MODE -->
   <div id="voiceOverlay" class="overlay hidden">
     <div class="ai-box">
       <div class="ai-main">Far Western AI</div>
@@ -212,6 +233,15 @@ body {
     <button class="stop-btn" onclick="stopMic()">Stop Voice</button>
   </div>
 
+</div>
+
+<!-- 🌐 RIGHT PANEL -->
+<div class="side-panel">
+  <div class="panel-title">🌐 Live Search</div>
+  <div id="searchBox">No data</div>
+
+  <div class="panel-title" style="margin-top:10px;">⚡ AI Status</div>
+  <div id="aiStatus">Active</div>
 </div>
 
 <script src="app.js"></script>
