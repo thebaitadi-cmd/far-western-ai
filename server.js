@@ -4,7 +4,6 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import path from "path";
-import fetch from "node-fetch";
 
 const app = express();
 
@@ -12,7 +11,7 @@ const app = express();
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"]
+  allowedHeaders: ["Content-Type", "x-user-id"]
 }));
 
 // ✅ MIDDLEWARE
@@ -20,10 +19,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
-// 🧠 USER MEMORY (IN-MEMORY)
+// 🧠 USER MEMORY
 const userMemory = {};
-
-// 🎯 USER GOALS
 const userGoals = {};
 
 // =======================
@@ -43,15 +40,16 @@ async function callGemini(prompt) {
     );
 
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
 
-  } catch {
+  } catch (err) {
+    console.log("Gemini Error");
     return null;
   }
 }
 
 // =======================
-// ⚡ GROQ (FAST)
+// ⚡ GROQ
 // =======================
 async function callGroq(prompt) {
   try {
@@ -68,15 +66,16 @@ async function callGroq(prompt) {
     });
 
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
+    return data?.choices?.[0]?.message?.content || null;
 
-  } catch {
+  } catch (err) {
+    console.log("Groq Error");
     return null;
   }
 }
 
 // =======================
-// 🌐 SERPER (SEARCH)
+// 🌐 SEARCH (SERPER)
 // =======================
 async function searchWeb(query) {
   try {
@@ -90,7 +89,7 @@ async function searchWeb(query) {
     });
 
     const data = await res.json();
-    return data.organic?.slice(0, 3) || [];
+    return data?.organic?.slice(0, 3) || [];
 
   } catch {
     return [];
@@ -109,26 +108,19 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // 👉 INIT MEMORY
     if (!userMemory[userId]) userMemory[userId] = [];
     if (!userGoals[userId]) userGoals[userId] = null;
 
-    // 👉 SAVE USER MESSAGE
     userMemory[userId].push({ role: "user", content: msg });
 
-    // 👉 LIMIT MEMORY
     const history = userMemory[userId].slice(-10);
 
-    // =======================
-    // 🎯 GOAL DETECTION
-    // =======================
+    // 🎯 GOAL
     if (msg.toLowerCase().includes("goal")) {
       userGoals[userId] = msg;
     }
 
-    // =======================
-    // 🌐 SEARCH TRIGGER
-    // =======================
+    // 🌐 SEARCH
     let searchData = "";
     if (
       msg.toLowerCase().includes("news") ||
@@ -139,9 +131,7 @@ app.post("/chat", async (req, res) => {
       searchData = results.map(r => `${r.title} - ${r.snippet}`).join("\n");
     }
 
-    // =======================
-    // 🧠 FINAL PROMPT
-    // =======================
+    // 🧠 PROMPT
     const prompt = `
 You are Far Western AI — powerful, smart, slightly bold assistant.
 
@@ -159,9 +149,7 @@ Instructions:
 - Be clear and useful
 `;
 
-    // =======================
     // 🤖 MULTI AI
-    // =======================
     let reply = await callGemini(prompt);
 
     if (!reply) {
@@ -172,7 +160,6 @@ Instructions:
       reply = "⚠️ AI not responding";
     }
 
-    // 👉 SAVE BOT REPLY
     userMemory[userId].push({ role: "bot", content: reply });
 
     res.json({ reply });
@@ -183,23 +170,17 @@ Instructions:
   }
 });
 
-// =======================
 // ✅ HEALTH
-// =======================
 app.get("/health", (req, res) => {
   res.send("OK");
 });
 
-// =======================
 // ✅ ROOT
-// =======================
 app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
-// =======================
 // 🚀 PORT
-// =======================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
