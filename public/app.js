@@ -7,18 +7,18 @@ const overlay = document.getElementById("voiceOverlay");
 let recognition = null;
 let isListening = false;
 let isSpeaking = false;
+let isStarting = false; // 🔥 NEW FIX
 
-// 🧠 UNIQUE USER ID (memory ke liye)
+// 🧠 UNIQUE USER ID
 let userId = localStorage.getItem("fw_user");
 if (!userId) {
   userId = "user_" + Math.random().toString(36).substring(2, 10);
   localStorage.setItem("fw_user", userId);
 }
 
-// 🌐 DOMAIN
 const API_URL = "https://ai.thebaitadi.com";
 
-// 🧠 ADD MESSAGE UI
+// 🧠 UI MESSAGE
 function addMessage(text, sender) {
   const div = document.createElement("div");
   div.className = "msg " + sender;
@@ -40,15 +40,12 @@ async function sendText() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-user-id": userId // 🔥 memory connect
+        "x-user-id": userId
       },
       body: JSON.stringify({ msg })
     });
 
-    if (!res.ok) throw new Error();
-
     const data = await res.json();
-
     addMessage(data.reply, "bot");
 
   } catch {
@@ -56,7 +53,19 @@ async function sendText() {
   }
 }
 
-// 🎤 START MIC (FIXED)
+// 🎤 SAFE START
+function safeStart() {
+  if (!recognition || isListening || isStarting) return;
+
+  try {
+    isStarting = true;
+    recognition.start();
+  } catch (e) {
+    console.log("Start blocked:", e);
+  }
+}
+
+// 🎤 START MIC
 function startMic() {
   if (isListening) return;
 
@@ -68,7 +77,27 @@ function startMic() {
   sendBtn.style.display = "none";
   overlay.classList.remove("hidden");
 
-  micBtn.innerText = "🛑 Stop"; // ✅ FIX
+  micBtn.innerText = "🛑 Stop";
+
+  recognition.onstart = () => {
+    isListening = true;
+    isStarting = false;
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+
+    // 🔁 SAFE RESTART
+    if (!isSpeaking) {
+      setTimeout(() => safeStart(), 600);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    console.log("Speech error:", e.error);
+    isListening = false;
+    isStarting = false;
+  };
 
   recognition.onresult = async (event) => {
     if (isSpeaking) return;
@@ -85,8 +114,6 @@ function startMic() {
         body: JSON.stringify({ msg: text })
       });
 
-      if (!res.ok) throw new Error();
-
       const data = await res.json();
 
       recognition.stop();
@@ -96,10 +123,14 @@ function startMic() {
 
       speech.onend = () => {
         isSpeaking = false;
-        if (isListening) recognition.start();
+
+        // 🔥 FIX: delay restart
+        setTimeout(() => {
+          if (!isListening) safeStart();
+        }, 700);
       };
 
-      speechSynthesis.cancel(); // 🔥 overlap fix
+      speechSynthesis.cancel();
       speechSynthesis.speak(speech);
 
     } catch {
@@ -107,11 +138,10 @@ function startMic() {
     }
   };
 
-  recognition.start();
-  isListening = true;
+  safeStart();
 }
 
-// ⛔ STOP MIC (FIXED)
+// ⛔ STOP MIC
 function stopMic() {
   if (recognition) {
     recognition.onresult = null;
@@ -119,6 +149,7 @@ function stopMic() {
   }
 
   isListening = false;
+  isStarting = false;
 
   input.style.display = "block";
   sendBtn.style.display = "block";
@@ -126,7 +157,7 @@ function stopMic() {
 
   speechSynthesis.cancel();
 
-  micBtn.innerText = "🎤 Mic"; // ✅ FIX
+  micBtn.innerText = "🎤 Mic";
 }
 
 // 🔘 BUTTONS
