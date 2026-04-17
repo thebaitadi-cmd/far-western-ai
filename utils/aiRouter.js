@@ -1,6 +1,6 @@
 import callFallback from "./fallback.js";
 
-import { callGroq } from "../services/groq.js";
+import groq from "../services/groq.js";";
 import { searchWeb } from "../services/search.js";
 import { getWiki } from "../services/wiki.js";
 import { getNews } from "../services/news.js";
@@ -116,7 +116,7 @@ Rules:
     // 🤖 AI CHAIN (GROQ → FALLBACK)
     // =======================
 
-    let reply = await callGroq(prompt);
+   let reply = await groq(prompt);;
 
     // ⚠️ SMART FALLBACK TRIGGER
     if (
