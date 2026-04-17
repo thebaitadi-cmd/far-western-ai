@@ -1,6 +1,6 @@
 import callFallback from "./fallback.js";
 
-import groq from "../services/groq.js";";
+import groq from "../services/groq.js";
 import { searchWeb } from "../services/search.js";
 import { getWiki } from "../services/wiki.js";
 import { getNews } from "../services/news.js";
