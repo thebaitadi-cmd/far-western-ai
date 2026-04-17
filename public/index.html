@@ -195,12 +195,50 @@ body {
   color: #94a3b8;
   letter-spacing: 2px;
 }
+
+/* 🔥 NEW ROUND LOGO */
+.logo-circle {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 15px;
+
+  font-size: 38px;
+  font-weight: bold;
+  color: white;
+
+  background: linear-gradient(45deg, #ff00cc, #00ffe1, #ffaa00);
+  background-size: 300% 300%;
+
+  box-shadow:
+    0 0 20px rgba(0,255,225,0.5),
+    0 0 40px rgba(255,0,204,0.5),
+    0 0 60px rgba(255,170,0,0.4);
+
+  animation: glowMove 6s infinite linear;
+}
+
+.logo-circle span {
+  text-shadow:
+    0 2px 5px rgba(0,0,0,0.6),
+    0 0 10px #fff,
+    0 0 20px #00ffe1,
+    0 0 30px #ff00cc;
+}
+
+@keyframes glowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 </style>
 </head>
 
 <body>
 
-<!-- 🧠 LEFT PANEL -->
 <div class="side-panel">
   <div class="panel-title">🧠 Memory</div>
   <div id="memoryBox">No memory yet</div>
@@ -209,7 +247,6 @@ body {
   <div id="goalBox">No goal set</div>
 </div>
 
-<!-- 💬 MAIN CHAT -->
 <div class="container">
 
   <div class="top-bar">
@@ -226,6 +263,12 @@ body {
 
   <div id="voiceOverlay" class="overlay hidden">
     <div class="ai-box">
+
+      <!-- 🔥 LOGO ADDED -->
+      <div class="logo-circle">
+        <span>FW</span>
+      </div>
+
       <div class="ai-main">Far Western AI</div>
       <div class="ai-sub">THE SUPER AI BRAIN</div>
     </div>
@@ -235,7 +278,6 @@ body {
 
 </div>
 
-<!-- 🌐 RIGHT PANEL -->
 <div class="side-panel">
   <div class="panel-title">🌐 Live Search</div>
   <div id="searchBox">No data</div>
