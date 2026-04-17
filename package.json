@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Far Western AI Chatbot",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "axios": "^1.15.0",
     "cors": "^2.8.6",
     "dotenv": "^16.0.3",
     "express": "^4.18.2"
