@@ -1,28 +1,29 @@
-const groq = require("../services/groq");
+import groq from "../services/groq.js";
 
-// (next services banenge tab enable karenge)
+// optional services (safe load)
 let gemini = null;
 let together = null;
 let openrouter = null;
 
 try {
-    gemini = require("../services/gemini");
-} catch (e) {}
+    gemini = (await import("../services/gemini.js")).default;
+} catch {}
 
 try {
-    together = require("../services/together");
-} catch (e) {}
+    together = (await import("../services/together.js")).default;
+} catch {}
 
 try {
-    openrouter = require("../services/openrouter");
-} catch (e) {}
+    openrouter = (await import("../services/openrouter.js")).default;
+} catch {}
 
-async function fallback(message) {
-    // 🧠 LAYER 1 — GROQ (PRIMARY)
+export default async function callFallback(message) {
+
+    // 🧠 LAYER 1 — GROQ
     try {
         const res = await groq(message);
         if (res) return res;
-    } catch (e) {
+    } catch {
         console.log("Groq failed");
     }
 
@@ -31,17 +32,17 @@ async function fallback(message) {
         try {
             const res = await gemini(message);
             if (res) return res;
-        } catch (e) {
+        } catch {
             console.log("Gemini failed");
         }
     }
 
-    // 🧠 LAYER 3 — TOGETHER AI
+    // 🧠 LAYER 3 — TOGETHER
     if (together) {
         try {
             const res = await together(message);
             if (res) return res;
-        } catch (e) {
+        } catch {
             console.log("Together failed");
         }
     }
@@ -51,13 +52,11 @@ async function fallback(message) {
         try {
             const res = await openrouter(message);
             if (res) return res;
-        } catch (e) {
+        } catch {
             console.log("OpenRouter failed");
         }
     }
 
-    // ❌ FINAL FALLBACK
-    return "⚠️ All AI systems are busy right now. Please try again later.";
+    // ❌ FINAL
+    return "⚠️ All AI systems are busy. Try again.";
 }
-
-module.exports = fallback;
