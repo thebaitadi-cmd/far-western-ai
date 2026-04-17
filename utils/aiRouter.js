@@ -10,19 +10,19 @@ const userMemory = {};
 const userGoals = {};
 
 // =======================
-// 🧠 AI ROUTER CORE
+// 🧠 AI ROUTER CORE (PRO MAX)
 // =======================
 export default async function aiRouter({ msg, userId }) {
   try {
     if (!msg) return "⚠️ Empty message";
 
-    // INIT USER MEMORY
+    // INIT
     if (!userMemory[userId]) userMemory[userId] = [];
     if (!userGoals[userId]) userGoals[userId] = null;
 
     userMemory[userId].push({ role: "user", content: msg });
 
-    // 🧠 MEMORY LIMIT (IMPORTANT FIX)
+    // memory limit
     if (userMemory[userId].length > 20) {
       userMemory[userId].shift();
     }
@@ -30,68 +30,79 @@ export default async function aiRouter({ msg, userId }) {
     const history = userMemory[userId].slice(-10);
     const text = msg.toLowerCase();
 
-    // 🎯 GOAL TRACK
+    // 🎯 goal tracking
     if (text.includes("goal")) {
       userGoals[userId] = msg;
     }
 
     // =======================
-    // 🌐 INTENT DETECTION (PRO MAX)
+    // 🧠 AUTO SMART MODE (FIXED)
     // =======================
 
-    const isWiki =
+    let mode = "chat";
+
+    if (
       text.includes("what is") ||
       text.includes("who is") ||
       text.includes("define") ||
-      text.includes("explain");
-
-    const isNews =
+      text.includes("explain")
+    ) {
+      mode = "wiki";
+    } 
+    else if (
       text.includes("news") ||
       text.includes("latest") ||
       text.includes("today") ||
-      text.includes("breaking");
-
-    const isSearch =
-      text.includes("google") ||
+      text.includes("breaking")
+    ) {
+      mode = "news";
+    } 
+    else if (
       text.includes("search") ||
-      text.includes("find");
+      text.includes("google") ||
+      text.includes("find")
+    ) {
+      mode = "search";
+    }
 
     // =======================
-    // ⚡ PARALLEL DATA FETCH
+    // ⚡ DATA FETCH (OPTIMIZED)
     // =======================
 
-    const [wikiRaw, newsRaw, searchRaw] = await Promise.all([
-      isWiki ? getWiki(msg) : null,
-      isNews ? getNews(msg) : null,
-      isSearch ? searchWeb(msg) : null
-    ]);
+    let wikiData = null;
+    let newsData = "";
+    let searchData = "";
 
-    // =======================
-    // 🧾 NORMALIZATION
-    // =======================
+    if (mode === "wiki") {
+      wikiData = await getWiki(msg);
+    }
 
-    const wikiData = wikiRaw || null;
+    if (mode === "news") {
+      const data = await getNews(msg);
+      newsData = data
+        ? data.map(n => `${n.title} - ${n.description}`).join("\n")
+        : "";
+    }
 
-    const newsData = newsRaw
-      ? newsRaw.map(n => `${n.title} - ${n.description}`).join("\n")
-      : "";
-
-    const searchData = searchRaw
-      ? searchRaw.map(r => `${r.title} - ${r.snippet}`).join("\n")
-      : "";
+    if (mode === "search") {
+      const data = await searchWeb(msg);
+      searchData = data
+        ? data.map(r => `${r.title} - ${r.snippet}`).join("\n")
+        : "";
+    }
 
     // =======================
     // 🧠 PROMPT ENGINE
     // =======================
 
     const prompt = `
-You are Far Western AI — a powerful SaaS AI assistant.
+You are Far Western AI — smart SaaS assistant.
 
 User Goal:
 ${userGoals[userId] || "none"}
 
 Mode:
-${isWiki ? "wiki" : isNews ? "news" : isSearch ? "search" : "chat"}
+${mode}
 
 Wiki Data:
 ${wikiData || "none"}
@@ -105,25 +116,21 @@ ${searchData || "none"}
 Chat History:
 ${history.map(m => `${m.role}: ${m.content}`).join("\n")}
 
-Rules:
-- Be clear, accurate and helpful
-- Combine multiple sources if available
-- Prioritize latest and factual info
-- If unsure, say so
-    `;
+RULES:
+- Be accurate and helpful
+- Use provided data when available
+- Never say you don't know if data exists
+- Combine sources if needed
+`;
 
     // =======================
-    // 🤖 AI CHAIN (GROQ → FALLBACK)
+    // 🤖 AI CHAIN
     // =======================
 
-   let reply = await groq(prompt);;
+    let reply = await groq(prompt);
 
-    // ⚠️ SMART FALLBACK TRIGGER
-    if (
-      !reply ||
-      reply.includes("I don't know") ||
-      reply.length < 20
-    ) {
+    // fallback trigger
+    if (!reply || reply.length < 20) {
       reply = await callFallback(prompt);
     }
 
@@ -131,7 +138,7 @@ Rules:
       reply = "⚠️ AI system unavailable";
     }
 
-    // 💾 SAVE MEMORY
+    // save memory
     userMemory[userId].push({ role: "bot", content: reply });
 
     return reply;
